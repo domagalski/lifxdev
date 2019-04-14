@@ -513,7 +513,7 @@ class LIFXProcessServer(object):
         proc_script = self.avail_procs[proc_name]["filename"]
         if proc_script[0] != '/':
             proc_script = os.path.join(self.avail_proc_dir, proc_script)
-        cmd_list = ['python3', proc_script] + proc_args
+        cmd_list = [proc_script] + proc_args
 
         # ongoing processes get instantly put in the running proccess queue
         if self.avail_procs[proc_name]['ongoing']:
