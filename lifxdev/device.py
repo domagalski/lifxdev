@@ -300,6 +300,19 @@ class DeviceManager(LIFXdevice):
         self.discovery_devices = devices
         return devices
 
+    def get_group_devices(self, group_name):
+        """
+        Get a list of devices in a device group.
+        """
+        device_list = []
+        group = self.groups[group_name]
+        for dev_name, dev_type in group:
+            if dev_type == 'group':
+                device_list += self.get_group_devices(dev_name)
+            else:
+                device_list.append(dev_name)
+        return device_list
+
     def get_targeted_device(self, target, ip, port):
         """
         Get a device based on mac address, ip, and port.

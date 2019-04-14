@@ -5,11 +5,12 @@ import sys
 import signal
 import socket
 import subprocess as spr
-from random import random
 from threading import Thread
 
 import yaml
+import numpy as np
 from matplotlib import cm
+from numpy.random import random, shuffle
 
 from lifxdev import DeviceManager, rgba2hsbk
 
@@ -387,10 +388,31 @@ class LIFXProcessServer(object):
         cmap_name = cmap_name.replace('-', '_')
         if cmap_name not in self.cmap_names:
             return 'Invalid color map: {}'.format(cmap_name)
+        cmap = cm.get_cmap(cmap_name)
 
         if device_name in self.device_manager.groups:
-            for dev_name, dev_type in self.device_manager.groups[device_name]:
-                self.set_cmap(dev_name, cmap_name, duration)
+            dev_name_list = self.device_manager.get_group_devices(device_name)
+
+            n_bulbs = 0
+            for name in dev_name_list:
+                n_bulbs += self.device_manager.devices[name].device_type == 'bulb'
+
+            # Set the bulbs
+            bulb_colors = np.linspace(0, 1, n_bulbs)
+            bulb_colors += random()
+            bulb_colors %= 1.0
+            shuffle(bulb_colors)
+
+            hsbk_list = [rgba2hsbk(cmap(col), WHITE_KELVIN) for col in bulb_colors]
+            for name in dev_name_list:
+                device = self.device_manager.devices[name]
+                if device.device_type == 'bulb':
+                    hsbk = hsbk_list.pop()
+                    device.set_power(True, 0)
+                    device.set_color(hsbk, duration)
+                elif device.device_type == 'multizone':
+                    device.set_cmap(cmap_name, duration)
+
             return 'Device group {} color map is {}.'.format(device_name, cmap_name)
 
         if device_name in self.device_manager.devices:
@@ -400,7 +422,6 @@ class LIFXProcessServer(object):
                 device.set_cmap(cmap_name, duration)
                 return 'Device {} color map is {}.'.format(device_name, cmap_name)
             else:
-                cmap = cm.get_cmap(cmap_name)
                 hsbk = rgba2hsbk(cmap(random()), WHITE_KELVIN)
                 return self.set_color(device_name, hsbk, duration)
         else:
