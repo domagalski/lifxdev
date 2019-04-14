@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
+import glob
 from distutils.core import setup
-from Cython.Build import cythonize
 
 pkg_name = 'lifxdev'
 setup(name=pkg_name,
@@ -10,4 +10,6 @@ setup(name=pkg_name,
       author='Rachel Simone Domagalski',
       author_email='rsdomagalski@gmail.com',
       license='GPL',
-      packages=[pkg_name])
+      packages=[pkg_name],
+      scripts=glob.glob('scripts/*'),
+      )
