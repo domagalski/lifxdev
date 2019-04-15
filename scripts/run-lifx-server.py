@@ -69,7 +69,9 @@ class LIFXProcessServer(object):
             check_str = 'No processes with errors.\n'
 
         if len(check_str):
-            self.send_reply(check_str[:-1], conn)
+            return self.send_reply(check_str[:-1], conn)
+        else:
+            return True
 
     def command_thread(self, conn, addr):
         # Welcome message
@@ -77,11 +79,16 @@ class LIFXProcessServer(object):
             'Welcome to the LIFX process server.',
             'Type \'help\' for a list of commands.\n\n',
             ]))
-        conn.send(welcome_msg + self.prompt)
+        self.conn_send(conn, welcome_msg + self.prompt)
 
         loop_active = True
         while loop_active:
-            cmd_bytes = conn.recv(1024)
+            try:
+                cmd_bytes = conn.recv(1024)
+            except BrokenPipeError:
+                cmd_bytes = b''
+
+
             if not len(cmd_bytes):
                 loop_active = False
                 conn.close()
@@ -91,6 +98,13 @@ class LIFXProcessServer(object):
                 # telnet adds a carraige return to commands
                 command = command.rstrip('\r')
                 loop_active = self.run_command(command, conn, addr)
+
+    def conn_send(self, conn, send_bytes):
+        try:
+            conn.send(send_bytes)
+            return True
+        except BrokenPipeError:
+            return False
 
     def help_display(self, conn):
         # TODO power and cmap
@@ -109,28 +123,28 @@ class LIFXProcessServer(object):
                 'start <proc>    Start a process from the list of processes.',
                 'stop <proc>     Stop a running process.',
                 ])
-        self.send_reply(help_str, conn)
+        return self.send_reply(help_str, conn)
 
     def list_cmaps(self, conn):
         cmap_list_str = 'Available color maps (append "_r" for reverse order).\n'
         cmap_list_str += '\n'.join(sorted([cmap for cmap in self.cmap_names if cmap[-2:] != '_r']))
-        self.send_reply(cmap_list_str, conn)
+        return self.send_reply(cmap_list_str, conn)
 
     def list_devices(self, conn):
         if len(self.device_manager.devices):
             device_list_str = 'Available devices:\n'
             device_list_str += '\n'.join(sorted(self.device_manager.devices.keys()))
-            self.send_reply(device_list_str, conn)
+            return self.send_reply(device_list_str, conn)
         else:
-            self.send_reply('No devices available.', conn)
+            return self.send_reply('No devices available.', conn)
 
     def list_groups(self, conn):
         if len(self.device_manager.groups):
             device_list_str = 'Available device groups:\n'
             device_list_str += '\n'.join(sorted(self.device_manager.groups.keys()))
-            self.send_reply(device_list_str, conn)
+            return self.send_reply(device_list_str, conn)
         else:
-            self.send_reply('No device groups available.', conn)
+            return self.send_reply('No device groups available.', conn)
 
     def list_proc(self, conn):
         """
@@ -172,7 +186,7 @@ class LIFXProcessServer(object):
                 proc_list_str += '{}: {}\n'.format(proc, self.avail_procs[proc]["filename"])
 
         # strip the last endline (the prompt has one)
-        self.send_reply(proc_list_str[:-1], conn)
+        return self.send_reply(proc_list_str[:-1], conn)
 
     def loop(self):
         """
@@ -201,7 +215,9 @@ class LIFXProcessServer(object):
         self.avail_proc_dir = self.avail_procs.pop('PROC_DIR')
 
         if conn is not None:
-            self.send_reply('Process configuration reloaded.', conn)
+            return self.send_reply('Process configuration reloaded.', conn)
+        else:
+            return True
 
     def run_command(self, command, conn, addr):
         """
@@ -221,12 +237,11 @@ class LIFXProcessServer(object):
         """
         # basic prompt
         if command == '':
-            conn.send(self.prompt)
+            return self.conn_send(conn, self.prompt)
 
         elif command == 'shutdown':
             if addr[0] != '127.0.0.1':
-                self.send_reply('Server can only be quit locally.', conn)
-                return True
+                return self.send_reply('Server can only be quit locally.', conn)
 
             running_proc_names = list(self.running_procs.keys())
             for proc_name in running_proc_names:
@@ -248,23 +263,23 @@ class LIFXProcessServer(object):
             return False
 
         elif command == 'help':
-            self.help_display(conn)
+            return self.help_display(conn)
 
         elif command == 'check':
-            self.check_running_procs(conn)
+            return self.check_running_procs(conn)
 
         elif command == 'cmap':
-            self.list_cmaps(conn)
+            return self.list_cmaps(conn)
 
         elif command == 'devices':
-            self.list_devices(conn)
+            return self.list_devices(conn)
 
         elif command == 'groups':
-            self.list_groups(conn)
+            return self.list_groups(conn)
 
         elif command == 'list':
             self.check_running_procs(conn, False)
-            self.list_proc(conn)
+            return self.list_proc(conn)
 
         elif command == 'off':
             running_proc_names = list(self.running_procs.keys())
@@ -275,22 +290,19 @@ class LIFXProcessServer(object):
             # retry in case there are some finicky lights
             for i in range(5):
                 self.device_manager.set_power(False, 0)
-            self.send_reply('All LIFX lights off.', conn)
+            return self.send_reply('All LIFX lights off.', conn)
 
         elif command == 'on':
             # retry in case there are some finicky lights
             for i in range(5):
                 self.device_manager.set_power(True, 0)
-            self.send_reply('All LIFX lights on.', conn)
+            return self.send_reply('All LIFX lights on.', conn)
 
         elif command == 'reload':
-            self.reload_conf(conn)
+            return self.reload_conf(conn)
 
         else:
-            self.run_command_with_args(command, conn)
-
-        # always return true unless the quit function is received
-        return True
+            return self.run_command_with_args(command, conn)
 
     def run_command_with_args(self, command, conn):
         """
@@ -299,16 +311,16 @@ class LIFXProcessServer(object):
         cmd_list = command.split()
 
         if cmd_list[0] == 'restart':
-            self.send_reply(self.restart_proc(cmd_list[1:]), conn)
+            return self.send_reply(self.restart_proc(cmd_list[1:]), conn)
 
         elif cmd_list[0] == 'start':
-            self.send_reply(self.start_proc(cmd_list[1:]), conn)
+            return self.send_reply(self.start_proc(cmd_list[1:]), conn)
 
         elif cmd_list[0] == 'stop':
             if len(cmd_list) == 2:
-                self.send_reply(self.stop_proc(cmd_list[1]), conn)
+                return self.send_reply(self.stop_proc(cmd_list[1]), conn)
             else:
-                self.send_reply('No process to stop.', conn)
+                return self.send_reply('No process to stop.', conn)
 
         elif cmd_list[0] == 'cmap':
             if len(cmd_list) == 3 or len(cmd_list) == 4:
@@ -319,17 +331,16 @@ class LIFXProcessServer(object):
                     try:
                         duration = 1000*int(cmd_list[3])
                     except ValueError:
-                        self.send_reply('Invalid duration.', conn)
-                        return
+                        return self.send_reply('Invalid duration.', conn)
                 else:
                     duration = 0
 
-                self.send_reply(self.set_cmap(dev_name, cmap_name, duration), conn)
+                return self.send_reply(self.set_cmap(dev_name, cmap_name, duration), conn)
 
             elif len(cmd_list) > 4:
-                self.send_reply('Too many arguments.', conn)
+                return self.send_reply('Too many arguments.', conn)
             else:
-                self.send_reply('Missing arguments.', conn)
+                return self.send_reply('Missing arguments.', conn)
 
         elif cmd_list[0] == 'color':
             if len(cmd_list) == 6 or len(cmd_list) == 7:
@@ -340,24 +351,22 @@ class LIFXProcessServer(object):
                     brightness = float(cmd_list[4])
                     kelvin = int(cmd_list[5])
                 except ValueError:
-                    self.send_reply('Invalid HSBK values.', conn)
-                    return
+                    return self.send_reply('Invalid HSBK values.', conn)
                 hsbk = (hue, sat, brightness, kelvin)
 
                 if len(cmd_list) == 7:
                     try:
                         duration = 1000*int(cmd_list[6])
                     except ValueError:
-                        self.send_reply('Invalid duration.', conn)
-                        return
+                        return self.send_reply('Invalid duration.', conn)
                 else:
                     duration = 0
 
-                self.send_reply(self.set_color(dev_name, hsbk, duration), conn)
+                return self.send_reply(self.set_color(dev_name, hsbk, duration), conn)
             elif len(cmd_list) > 7:
-                self.send_reply('Too many arguments.', conn)
+                return self.send_reply('Too many arguments.', conn)
             else:
-                self.send_reply('Missing arguments.', conn)
+                return self.send_reply('Missing arguments.', conn)
 
         elif cmd_list[0] == 'power':
             if len(cmd_list) == 3 or len(cmd_list) == 4:
@@ -368,20 +377,19 @@ class LIFXProcessServer(object):
                     try:
                         duration = 1000*int(cmd_list[3])
                     except ValueError:
-                        self.send_reply('Invalid duration.', conn)
-                        return
+                        return self.send_reply('Invalid duration.', conn)
                 else:
                     duration = 0
 
-                self.send_reply(self.set_power_state(dev_name, power_state, duration), conn)
+                return self.send_reply(self.set_power_state(dev_name, power_state, duration), conn)
 
             elif len(cmd_list) > 4:
-                self.send_reply('Too many arguments.', conn)
+                return self.send_reply('Too many arguments.', conn)
             else:
-                self.send_reply('Missing arguments.', conn)
+                return self.send_reply('Missing arguments.', conn)
 
         else:
-            self.send_reply('Invalid command.', conn)
+            return self.send_reply('Invalid command.', conn)
 
     def set_cmap(self, device_name, cmap_name, duration=0):
         cmap_name = cmap_name.replace('-', '_')
@@ -484,7 +492,7 @@ class LIFXProcessServer(object):
     def send_reply(self, reply_str, conn):
         reply_bytes = str.encode(reply_str + '\n')
         reply_bytes += self.prompt
-        conn.send(reply_bytes)
+        return self.conn_send(conn, reply_bytes)
 
     def restart_proc(self, proc_args):
         self.stop_proc(proc_args[0])
