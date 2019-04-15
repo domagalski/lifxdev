@@ -86,8 +86,7 @@ class LIFXProcessServer(object):
                 loop_active = False
                 conn.close()
 
-            # Only continue if ascii command
-            elif cmd_bytes.isascii():
+            else:
                 command = cmd_bytes.decode().rstrip('\n')
                 # telnet adds a carraige return to commands
                 command = command.rstrip('\r')
