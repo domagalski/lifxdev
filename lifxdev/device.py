@@ -606,7 +606,6 @@ class LIFXmultizone(_LIFXeffects):
                     for hsbk in hsbk_list]
 
         self.set_extended_color_zones(duration, 'APPLY', 0, self.n_zones, hsbk_list)
-        self.set_power(True, 0)
 
 class LIFXtile(_LIFXeffects):
     """

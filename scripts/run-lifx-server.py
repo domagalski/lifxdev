@@ -415,7 +415,6 @@ class LIFXProcessServer(object):
                 device = self.device_manager.devices[name]
                 if device.device_type == 'bulb':
                     hsbk = hsbk_list.pop()
-                    device.set_power(True, 0)
                     device.set_color(hsbk, duration)
                 elif device.device_type == 'multizone':
                     device.set_cmap(cmap_name, duration)
@@ -424,7 +423,6 @@ class LIFXProcessServer(object):
 
         if device_name in self.device_manager.devices:
             device = self.device_manager.devices[device_name]
-            device.set_power(True, 0)
             if device.device_type == 'multizone':
                 device.set_cmap(cmap_name, duration)
                 return 'Device {} color map is {}.'.format(device_name, cmap_name)
@@ -463,7 +461,6 @@ class LIFXProcessServer(object):
 
         if device_name in self.device_manager.devices:
             device = self.device_manager.devices[device_name]
-            device.set_power(True, 0)
             device.set_color(hsbk, duration)
             response = 'Device {} color parameters:\n'.format(device_name)
             response += color_param_str
