@@ -115,6 +115,7 @@ class LIFXProcessServer(object):
                 'check           Check running processes.',
                 'devices         List available devices.',
                 'groups          List available device groups.',
+                'killall         Kill all running processes.',
                 'list            List all processes.',
                 'off             Turn all lights on the network off.',
                 'on              Turn all lights on the network on.',
@@ -124,6 +125,13 @@ class LIFXProcessServer(object):
                 'stop <proc>     Stop a running process.',
                 ])
         return self.send_reply(help_str, conn)
+
+    def killall(self, conn):
+        while len(self.running_procs):
+            proc_name = list(self.running_procs.keys()).pop()
+            proc_spr = self.running_procs.pop(proc_name)['proc']
+            proc_spr.terminate()
+        return self.send_reply('Killing all running processes.', conn)
 
     def list_cmaps(self, conn):
         cmap_list_str = 'Available color maps (append "_r" for reverse order).\n'
@@ -226,10 +234,16 @@ class LIFXProcessServer(object):
         Command list:
             help
             check
+            cmap
+            color
+            devices
+            groups
+            killall
             list
             off
             on
             quit
+            power
             reload
             restart
             start
@@ -276,6 +290,9 @@ class LIFXProcessServer(object):
 
         elif command == 'groups':
             return self.list_groups(conn)
+
+        elif command == 'killall':
+            return self.killall(conn)
 
         elif command == 'list':
             self.check_running_procs(conn, False)
