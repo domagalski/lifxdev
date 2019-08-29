@@ -350,7 +350,7 @@ class DeviceManager(LIFXdevice):
         Load devices and groups from a yaml device configuration file.
         """
         with open(config_filename) as f:
-            device_dict = yaml.load(f, Loader=yaml.FullLoader)
+            device_dict = yaml.safe_load(f)
 
         self.populate_from_dict(device_dict, do_init_socket)
 
