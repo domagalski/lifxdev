@@ -41,7 +41,7 @@ class LIFXdevice(LIFXpacket):
     """
     Basic LIFX device class. All devices inherit from this.
     """
-    def __init__(self, target, ip, port=DEFAULT_PORT, do_init_socket=False):
+    def __init__(self, target, ip, port=DEFAULT_PORT, do_init_socket=False, broadcast=False):
         """
         Initialize a LIFX device.
 
@@ -50,6 +50,7 @@ class LIFXdevice(LIFXpacket):
             ip              IP address of the device.
             port            UDP port. Defaults to 56700.
             do_init_socket  Whether to initialize the socket (default: False).
+            broadcast       Whether or not to connect to a broadcast device.
         """
         super(LIFXdevice, self).__init__()
         if isinstance(target, str):
@@ -61,17 +62,21 @@ class LIFXdevice(LIFXpacket):
         self.device_type = None
 
         if do_init_socket:
-            self.init_socket()
+            self.init_socket(broadcast)
         else:
             self.sock = None
 
-    def init_socket(self):
+    def init_socket(self, broadcast=False):
         """
         Initialize the network socket.
         """
         # Network socket initialization
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.settimeout(SOCKET_TIMEOUT)
+        if broadcast:
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            self.sock.bind(('', 0))
 
     def get_all_cmaps(self):
         # put all cmaps into a list
@@ -210,7 +215,7 @@ class DeviceManager(LIFXdevice):
         Initialize a LIFX device as an untargeted device with a
         broadcast address.
         """
-        super(DeviceManager, self).__init__(0, '255.255.255.255')
+        super(DeviceManager, self).__init__(0, '255.255.255.255', broadcast=True, do_init_socket=True)
         self.device_type = 'manager'
 
         # get the products file from the lifx github
@@ -228,10 +233,7 @@ class DeviceManager(LIFXdevice):
         self.devices = {}
         self.groups = {}
 
-        self.init_socket()
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        self.sock.bind(('', 0))
+        #self.init_socket(True)
 
     def discover(self, max_attempts=1):
         """
@@ -254,11 +256,7 @@ class DeviceManager(LIFXdevice):
                 #time.sleep(1)
 
                 # Try to reset the packet
-                self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                self.sock.settimeout(SOCKET_TIMEOUT)
-                self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                self.sock.bind(('', 0))
+                self.init_socket(True)
                 do_retry = True
                 continue
             logger.info('Discovery attempt {}.'.format(attempts+1))
@@ -284,11 +282,15 @@ class DeviceManager(LIFXdevice):
 
                 label, device_type = response
 
+                # skip invalid devices
+                if device_type is None:
+                    continue
+
                 # Skip duplicates
                 if label in devices:
                     continue
 
-                new_device = device_type(*dev_info)
+                new_device = device_type(*dev_info, do_init_socket=True)
                 if new_device.ping_device():
                     devices[label] = device_type(*dev_info)
                 else:
@@ -318,7 +320,7 @@ class DeviceManager(LIFXdevice):
         Get a device based on mac address, ip, and port.
         Return an object corresponding to device type.
         """
-        device = LIFXdevice(target, ip, port)
+        device = LIFXdevice(target, ip, port, True)
         dev_attrs = device.get_device_attrs(self.lifx_product_filename)
         if dev_attrs is None:
             return (None, None)
@@ -348,7 +350,7 @@ class DeviceManager(LIFXdevice):
         Load devices and groups from a yaml device configuration file.
         """
         with open(config_filename) as f:
-            device_dict = yaml.load(f)
+            device_dict = yaml.load(f, Loader=yaml.FullLoader)
 
         self.populate_from_dict(device_dict, do_init_socket)
 
