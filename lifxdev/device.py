@@ -584,11 +584,11 @@ class LIFXmultizone(_LIFXeffects):
         self.payload = struct.pack('<IBHB' + MAX_ZONES*'HHHH', *struct_tuple)
         self.generate_and_send('SetExtendedColorZones')
 
-    def set_cmap(self, cmap_name, duration=0):
+    def set_cmap(self, cmap_name, duration=0, roll_offset=0):
         if not self.n_zones:
             self.get_extended_color_zones()
 
-        kelvin = 5000
+        kelvin = 5500
         color_res = 1000
 
         cmap = cm.get_cmap(cmap_name, self.n_zones)
@@ -596,7 +596,7 @@ class LIFXmultizone(_LIFXeffects):
         # light up the beam
         hsbk_list = []
         for i in range(self.n_zones):
-            hsbk_list.append(rgba2hsbk(cmap(i), kelvin))
+            hsbk_list.append(rgba2hsbk(cmap((i + roll_offset) % self.n_zones), kelvin))
 
         for i in range(self.n_zones, MAX_ZONES):
             hsbk_list.append((0, 0, 0, 0))
