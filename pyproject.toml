@@ -1,0 +1,36 @@
+[tool.black]
+line-length = 110
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | old
+  | __pycache__
+)/
+'''
+
+[flake8]
+max-line-length = 110
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | old
+  | __pycache__
+)/
+'''

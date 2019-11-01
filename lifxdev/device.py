@@ -2,7 +2,6 @@
 
 import os
 import json
-import time
 import socket
 import struct
 import logging
@@ -13,34 +12,37 @@ from matplotlib import cm
 
 from .packet import LIFXpacket, RESPONSE_TYPES
 
-logger = logging.getLogger(__name__)#.addHandler(logging.NullHandler())
-logger.setLevel('CRITICAL')
+logger = logging.getLogger(__name__)  # .addHandler(logging.NullHandler())
+logger.setLevel("CRITICAL")
 
 MAX_ZONES = 82
 MAX_TILES = 16
 TILE_SIZE = 64
 SOCKET_TIMEOUT = 1
 DEFAULT_PORT = 56700
-DEFAULT_CONFIG = os.path.join(os.environ['HOME'], '.lifx/device_config.yaml')
+DEFAULT_CONFIG = os.path.join(os.environ["HOME"], ".lifx/device_config.yaml")
 
 WAVEFORMS = {
-        'SAW': 0, 'saw': 0,
-        'SINE': 1, 'sine': 1,
-        'HALF_SINE': 2, 'half_sine': 2,
-        'TRIANGLE': 3, 'triangle': 3,
-        'PULSE': 4, 'pulse': 4,
-        }
+    "SAW": 0,
+    "saw": 0,
+    "SINE": 1,
+    "sine": 1,
+    "HALF_SINE": 2,
+    "half_sine": 2,
+    "TRIANGLE": 3,
+    "triangle": 3,
+    "PULSE": 4,
+    "pulse": 4,
+}
 
-APPLICATION_REQUEST = {
-        'NO_APPLY': 0, 'no_apply': 0,
-        'APPLY': 1, 'apply': 1,
-        'APPLY_ONLY': 2, 'apply_only': 2,
-        }
+APPLICATION_REQUEST = {"NO_APPLY": 0, "no_apply": 0, "APPLY": 1, "apply": 1, "APPLY_ONLY": 2, "apply_only": 2}
+
 
 class LIFXdevice(LIFXpacket):
     """
     Basic LIFX device class. All devices inherit from this.
     """
+
     def __init__(self, target, ip, port=DEFAULT_PORT, do_init_socket=False, broadcast=False):
         """
         Initialize a LIFX device.
@@ -76,12 +78,12 @@ class LIFXdevice(LIFXpacket):
         if broadcast:
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            self.sock.bind(('', 0))
+            self.sock.bind(("", 0))
 
     def get_all_cmaps(self):
         # put all cmaps into a list
-        cmap_names = [name for name in cm.cmap_d.keys() if name[-2:] != '_r']
-        cmap_names += [name for name in cm.cmaps_listed.keys() if name[-2:] != '_r']
+        cmap_names = [name for name in cm.cmap_d.keys() if name[-2:] != "_r"]
+        cmap_names += [name for name in cm.cmaps_listed.keys() if name[-2:] != "_r"]
         cmap_names = list(set(cmap_names))
         return cmap_names
 
@@ -105,20 +107,20 @@ class LIFXdevice(LIFXpacket):
         Get the device label from the device and return it.
         """
         # Parse the payload to get the product
-        response = self.get_validated_response('GetLabel')
+        response = self.get_validated_response("GetLabel")
         if response is None:
             return
 
         header, payload = response
-        label = payload.rstrip(b'\x00').decode()
+        label = payload.rstrip(b"\x00").decode()
         return label
 
     def get_power(self):
         """
         Get whether or not the device is powered on (bool).
         """
-        header, payload = self.get_validated_response('GetPowerDevice')
-        light_powered = bool(struct.unpack('<H', payload)[0])
+        header, payload = self.get_validated_response("GetPowerDevice")
+        light_powered = bool(struct.unpack("<H", payload)[0])
         return light_powered
 
     def get_product(self, product_filename):
@@ -126,17 +128,17 @@ class LIFXdevice(LIFXpacket):
         Get the product information for the device.
         """
         with open(product_filename) as f:
-            products = json.load(f)[0]['products']
+            products = json.load(f)[0]["products"]
 
         # Parse the payload to get the product
-        response = self.get_validated_response('GetVersion')
+        response = self.get_validated_response("GetVersion")
         if response is None:
             return
 
         header, payload = response
-        vendor, product, version = struct.unpack('<III', payload)
+        vendor, product, version = struct.unpack("<III", payload)
         for prod in products:
-            if product == prod['pid']:
+            if product == prod["pid"]:
                 return prod
 
     def get_validated_response(self, msg_type, send_msg=True):
@@ -158,12 +160,12 @@ class LIFXdevice(LIFXpacket):
         else:
             header, payload = self.parse_packet(self.sock.recv(4096))
         if header is None:
-            logger.error('ERROR: Cannot receive packets: {}'.format(payload))
+            logger.error("ERROR: Cannot receive packets: {}".format(payload))
             return None
 
         # Packet type must match expected response
-        if header['type'] != RESPONSE_TYPES[msg_type.replace('Get', 'State')]:
-            raise RuntimeError('Response type mismatch.')
+        if header["type"] != RESPONSE_TYPES[msg_type.replace("Get", "State")]:
+            raise RuntimeError("Response type mismatch.")
         return header, payload
 
     def generate_and_send(self, msg_type, ack_required=False, res_required=False):
@@ -178,7 +180,7 @@ class LIFXdevice(LIFXpacket):
         self.reset_packet()
 
     def ping_device(self):
-        response = self.get_validated_response('GetService')
+        response = self.get_validated_response("GetService")
         can_reach = bool(response is not None)
         return can_reach
 
@@ -187,7 +189,7 @@ class LIFXdevice(LIFXpacket):
         Send a packet and get a single response.
         """
         if self.packet is None:
-            raise RuntimeError('no packet')
+            raise RuntimeError("no packet")
 
         self.sock.sendto(self.packet, (self.ip, self.port))
         try:
@@ -201,31 +203,33 @@ class LIFXdevice(LIFXpacket):
         """
         Set the power state on the device (True/False).
         """
-        power = 65535*bool(light_powered)
-        self.payload = struct.pack('<HI', power, duration_ms)
-        self.generate_and_send('SetPowerDevice')
+        power = 65535 * bool(light_powered)
+        self.payload = struct.pack("<HI", power, duration_ms)
+        self.generate_and_send("SetPowerDevice")
+
 
 # Broadcast device for discovery
 class DeviceManager(LIFXdevice):
     """
     Broadcast discovery class.
     """
+
     def __init__(self):
         """
         Initialize a LIFX device as an untargeted device with a
         broadcast address.
         """
-        super(DeviceManager, self).__init__(0, '255.255.255.255', broadcast=True, do_init_socket=True)
-        self.device_type = 'manager'
+        super(DeviceManager, self).__init__(0, "255.255.255.255", broadcast=True, do_init_socket=True)
+        self.device_type = "manager"
 
         # get the products file from the lifx github
-        products = os.path.join(os.environ['HOME'], '.lifx/products.json')
+        products = os.path.join(os.environ["HOME"], ".lifx/products.json")
         if not os.path.exists(products):
-            os.system('mkdir -pv {}'.format(os.path.dirname(products)))
-            product_url = 'https://raw.githubusercontent.com/LIFX/products/master/products.json'
-            wget_cmd = 'wget {} -O {}'.format(product_url, products)
+            os.system("mkdir -pv {}".format(os.path.dirname(products)))
+            product_url = "https://raw.githubusercontent.com/LIFX/products/master/products.json"
+            wget_cmd = "wget {} -O {}".format(product_url, products)
             if os.system(wget_cmd):
-                raise RuntimeError('Cannot get product file from LIFX.')
+                raise RuntimeError("Cannot get product file from LIFX.")
         self.lifx_product_filename = products
 
         # managed devices and groups
@@ -233,7 +237,7 @@ class DeviceManager(LIFXdevice):
         self.devices = {}
         self.groups = {}
 
-        #self.init_socket(True)
+        # self.init_socket(True)
 
     def discover(self, max_attempts=1):
         """
@@ -247,19 +251,19 @@ class DeviceManager(LIFXdevice):
         while do_retry and attempts < max_attempts:
             do_retry = False
             # generate the packet to broadcast
-            self.generate_packet('GetService', res_required=True)
+            self.generate_packet("GetService", res_required=True)
             try:
                 self.sock.sendto(self.packet, (self.ip, self.port))
             except PermissionError:
-                logger.error('Resetting socket.')
+                logger.error("Resetting socket.")
                 self.sock.close()
-                #time.sleep(1)
+                # time.sleep(1)
 
                 # Try to reset the packet
                 self.init_socket(True)
                 do_retry = True
                 continue
-            logger.info('Discovery attempt {}.'.format(attempts+1))
+            logger.info("Discovery attempt {}.".format(attempts + 1))
 
             # Get StateService responses from devices
             recv_packets = True
@@ -268,7 +272,7 @@ class DeviceManager(LIFXdevice):
 
                 # Skip if error getting StateService
                 if dev_info is None:
-                    logger.error('ERROR: Cannot get device info.')
+                    logger.error("ERROR: Cannot get device info.")
                     do_retry = True
                     continue
 
@@ -276,7 +280,7 @@ class DeviceManager(LIFXdevice):
 
                 # retry on error scanning
                 if response is None:
-                    logger.error('ERROR: Cannot get device label.')
+                    logger.error("ERROR: Cannot get device label.")
                     do_retry = True
                     continue
 
@@ -294,7 +298,7 @@ class DeviceManager(LIFXdevice):
                 if new_device.ping_device():
                     devices[label] = device_type(*dev_info)
                 else:
-                    logger.error('ERROR: Cannot initialize device.')
+                    logger.error("ERROR: Cannot initialize device.")
                     do_retry = True
             attempts += 1
 
@@ -309,7 +313,7 @@ class DeviceManager(LIFXdevice):
         device_list = []
         group = self.groups[group_name]
         for dev_name, dev_type in group:
-            if dev_type == 'group':
+            if dev_type == "group":
                 device_list += self.get_group_devices(dev_name)
             else:
                 device_list.append(dev_name)
@@ -327,10 +331,10 @@ class DeviceManager(LIFXdevice):
 
         # get the object corresponding to the features
         label, product = dev_attrs
-        features = product['features']
-        if features['chain']:
+        features = product["features"]
+        if features["chain"]:
             dev_type = LIFXtile
-        elif features['multizone']:
+        elif features["multizone"]:
             dev_type = LIFXmultizone
         else:
             dev_type = LIFXbulb
@@ -361,12 +365,12 @@ class DeviceManager(LIFXdevice):
         """
         for name in device_dict:
             # recursive case is a device group
-            if device_dict[name]['type'] == 'group':
+            if device_dict[name]["type"] == "group":
                 self.groups[name] = []
-                for device in device_dict[name]['devices']:
+                for device in device_dict[name]["devices"]:
                     # get the name and device type
                     dev_name = list(device.keys())[0]
-                    dev_type = device[dev_name]['type']
+                    dev_type = device[dev_name]["type"]
 
                     # recurse
                     self.groups[name].append((dev_name, dev_type))
@@ -374,9 +378,9 @@ class DeviceManager(LIFXdevice):
 
             # base case is an individual device
             else:
-                mac = device_dict[name]['mac']
-                ip = device_dict[name]['ip']
-                device_class = get_device_class(device_dict[name]['type'])
+                mac = device_dict[name]["mac"]
+                ip = device_dict[name]["ip"]
+                device_class = get_device_class(device_dict[name]["type"])
                 self.devices[name] = device_class(mac, ip, do_init_socket=do_init_socket)
 
     def recv_state_service(self):
@@ -402,14 +406,15 @@ class DeviceManager(LIFXdevice):
         header, payload = self.parse_packet(packet)
 
         # Magic number: StateService == 3
-        if header['type'] != 3:
-            return (False, 'mismatch:type')
+        if header["type"] != 3:
+            return (False, "mismatch:type")
 
-        service, port = struct.unpack('<BI', payload)
+        service, port = struct.unpack("<BI", payload)
         if port:
-            return (True, (header['target'], addr[0], port))
+            return (True, (header["target"], addr[0], port))
         else:
-            return (False, 'device:unavailable')
+            return (False, "device:unavailable")
+
 
 # Basic LIFX bulb class
 class LIFXbulb(LIFXdevice):
@@ -417,12 +422,13 @@ class LIFXbulb(LIFXdevice):
     The LIFX bulb base class. Basic light device operations are
     defined in this class.
     """
+
     def __init__(self, *args, **kwargs):
         """
         Initialize the bulb with its mac address, IP address, and port.
         """
         super(LIFXbulb, self).__init__(*args, **kwargs)
-        self.device_type = 'bulb'
+        self.device_type = "bulb"
 
     def get_state(self):
         """
@@ -434,13 +440,13 @@ class LIFXbulb(LIFXdevice):
             label:  device label
         """
         # create the packet and send it to the bulb
-        header, payload = self.get_validated_response('Get')
+        header, payload = self.get_validated_response("Get")
 
         # unpack values from the packets.
-        bulb_state = struct.unpack('<HHHH h H 32s Q', payload)
+        bulb_state = struct.unpack("<HHHH h H 32s Q", payload)
         hsbk = hsbk_human(bulb_state[:4])
         _, power, label, _ = bulb_state[4:]
-        label = label.rstrip(b'\x00').decode()
+        label = label.rstrip(b"\x00").decode()
         power = bool(power)
 
         return (hsbk, power, label)
@@ -449,15 +455,15 @@ class LIFXbulb(LIFXdevice):
         """
         Get whether or not the device is powered on (bool).
         """
-        header, payload = self.get_validated_response('GetPowerLight')
-        light_powered = bool(struct.unpack('<H', payload)[0])
+        header, payload = self.get_validated_response("GetPowerLight")
+        light_powered = bool(struct.unpack("<H", payload)[0])
         return light_powered
 
     def get_infrared(self):
         """
         not implemented
         """
-        raise RuntimeError('not implemented')
+        raise RuntimeError("not implemented")
 
     def set_color(self, hsbk, duration_ms):
         """
@@ -468,8 +474,8 @@ class LIFXbulb(LIFXdevice):
             duration_ms     fade in time in milliseconds
         """
         hue, sat, brightness, kelvin = hsbk_machine(hsbk)
-        self.payload = struct.pack('<BHHHHI', 0, hue, sat, brightness, kelvin, duration_ms)
-        self.generate_and_send('SetColor')
+        self.payload = struct.pack("<BHHHHI", 0, hue, sat, brightness, kelvin, duration_ms)
+        self.generate_and_send("SetColor")
 
     def set_waveform(self, transient, hsbk, period, cycles, skew_ratio, waveform):
         """
@@ -484,54 +490,58 @@ class LIFXbulb(LIFXdevice):
             skew_ratio (float)
             waveform (string)
         """
-        transient_bytes = struct.pack('<BB', 0, bool(transient))
+        transient_bytes = struct.pack("<BB", 0, bool(transient))
 
         hue, sat, brightness, kelvin = hsbk_machine(hsbk)
-        hsbk_bytes = struct.pack('<HHHH', hue, sat, brightness, kelvin)
+        hsbk_bytes = struct.pack("<HHHH", hue, sat, brightness, kelvin)
 
         waveform_int = WAVEFORMS[waveform]
         if waveform_int == 4:
             if skew_ratio:
-                skew_scaled = int(65535*(skew_ratio - 0.5))
+                skew_scaled = int(65535 * (skew_ratio - 0.5))
             else:
                 skew_scaled = -32768
         else:
             skew_scaled = 0
-        wave_bytes = struct.pack('<IfhB', period, cycles, skew_scaled, waveform_int)
+        wave_bytes = struct.pack("<IfhB", period, cycles, skew_scaled, waveform_int)
 
         self.payload = transient_bytes + hsbk_bytes + wave_bytes
-        self.generate_and_send('SetWaveform')
+        self.generate_and_send("SetWaveform")
 
     def set_power(self, light_powered, duration_ms):
         """
         Set the power state on the device (True/False).
         """
-        power = 65535*bool(light_powered)
-        self.payload = struct.pack('<HI', power, duration_ms)
-        self.generate_and_send('SetPowerLight')
+        power = 65535 * bool(light_powered)
+        self.payload = struct.pack("<HI", power, duration_ms)
+        self.generate_and_send("SetPowerLight")
 
     def set_infrared(self):
         """
         do not use
         """
-        raise RuntimeError('not implemented')
+        raise RuntimeError("not implemented")
+
 
 class _LIFXeffects(LIFXbulb):
     """
     Common firmware effects for Z, Beam, and Tile
     """
+
     pass
+
 
 class LIFXmultizone(_LIFXeffects):
     """
     Class for Z strips and Beam devices
     """
+
     def __init__(self, *args, **kwargs):
         """
         Initialize the bulb with its mac address, IP address, and port.
         """
         super(LIFXmultizone, self).__init__(*args, **kwargs)
-        self.device_type = 'multizone'
+        self.device_type = "multizone"
         self.n_zones = 0
 
     def get_extended_color_zones(self):
@@ -545,19 +555,19 @@ class LIFXmultizone(_LIFXeffects):
             colors_count
             hsbk_list[82]
         """
-        response = self.get_validated_response('GetExtendedColorZones')
+        response = self.get_validated_response("GetExtendedColorZones")
         if response is None:
             return (None, None, None, None)
         header, payload = response
 
         # unpack values from the packets.
-        multi_state = struct.unpack('<HHB' + MAX_ZONES*'HHHH'+'B', payload)
+        multi_state = struct.unpack("<HHB" + MAX_ZONES * "HHHH" + "B", payload)
         n_zones = multi_state[0]
         index = multi_state[1]
         color_count = multi_state[2]
 
         # convert hsbk
-        hsbk_list = [hsbk_human(multi_state[3+4*i:3+4*(i+1)]) for i in range(MAX_ZONES)]
+        hsbk_list = [hsbk_human(multi_state[3 + 4 * i : 3 + 4 * (i + 1)]) for i in range(MAX_ZONES)]
 
         self.n_zones = n_zones
         return (n_zones, index, color_count, hsbk_list)
@@ -581,15 +591,14 @@ class LIFXmultizone(_LIFXeffects):
         # Generate the payload and apply it to the device
         apply_int = APPLICATION_REQUEST[application]
         struct_tuple = (duration, apply_int, index, colors_count) + hsbk_tuple
-        self.payload = struct.pack('<IBHB' + MAX_ZONES*'HHHH', *struct_tuple)
-        self.generate_and_send('SetExtendedColorZones')
+        self.payload = struct.pack("<IBHB" + MAX_ZONES * "HHHH", *struct_tuple)
+        self.generate_and_send("SetExtendedColorZones")
 
     def set_cmap(self, cmap_name, duration=0, roll_offset=0):
         if not self.n_zones:
             self.get_extended_color_zones()
 
         kelvin = 5500
-        color_res = 1000
 
         cmap = cm.get_cmap(cmap_name, self.n_zones)
 
@@ -604,21 +613,22 @@ class LIFXmultizone(_LIFXeffects):
         # normalize brightness
         max_bright = max([hsbk[2] for hsbk in hsbk_list])
         if max_bright:
-            hsbk_list = [(hsbk[0], hsbk[1], hsbk[2]/max_bright, hsbk[3])
-                    for hsbk in hsbk_list]
+            hsbk_list = [(hsbk[0], hsbk[1], hsbk[2] / max_bright, hsbk[3]) for hsbk in hsbk_list]
 
-        self.set_extended_color_zones(duration, 'APPLY', 0, self.n_zones, hsbk_list)
+        self.set_extended_color_zones(duration, "APPLY", 0, self.n_zones, hsbk_list)
+
 
 class LIFXtile(_LIFXeffects):
     """
     Class for Tile devices
     """
+
     def __init__(self, *args, **kwargs):
         """
         Initialize the bulb with its mac address, IP address, and port.
         """
         super(LIFXtile, self).__init__(*args, **kwargs)
-        self.device_type = 'tile'
+        self.device_type = "tile"
 
     def tile_msg(self, msg_tuple):
         """
@@ -627,18 +637,18 @@ class LIFXtile(_LIFXeffects):
         See message field data types.
         """
         msg_dict = {}
-        msg_dict['accel_meas_x'] = msg_tuple[0]
-        msg_dict['accel_meas_y'] = msg_tuple[1]
-        msg_dict['accel_meas_z'] = msg_tuple[2]
-        msg_dict['user_x'] = msg_tuple[4]
-        msg_dict['user_y'] = msg_tuple[5]
-        msg_dict['width'] = msg_tuple[6]
-        msg_dict['height'] = msg_tuple[7]
-        msg_dict['device_version_vender'] = msg_tuple[9]
-        msg_dict['device_version_product'] = msg_tuple[10]
-        msg_dict['device_version_version'] = msg_tuple[11]
-        msg_dict['firmware_build'] = msg_tuple[12]
-        msg_dict['firmware_version'] = msg_tuple[14]
+        msg_dict["accel_meas_x"] = msg_tuple[0]
+        msg_dict["accel_meas_y"] = msg_tuple[1]
+        msg_dict["accel_meas_z"] = msg_tuple[2]
+        msg_dict["user_x"] = msg_tuple[4]
+        msg_dict["user_y"] = msg_tuple[5]
+        msg_dict["width"] = msg_tuple[6]
+        msg_dict["height"] = msg_tuple[7]
+        msg_dict["device_version_vender"] = msg_tuple[9]
+        msg_dict["device_version_product"] = msg_tuple[10]
+        msg_dict["device_version_version"] = msg_tuple[11]
+        msg_dict["firmware_build"] = msg_tuple[12]
+        msg_dict["firmware_version"] = msg_tuple[14]
         return msg_dict
 
     def get_device_chain(self):
@@ -647,18 +657,18 @@ class LIFXtile(_LIFXeffects):
 
         Returns a list of message dicts from the tile_msg function.
         """
-        header, payload = self.get_validated_response('GetDeviceChain')
-        tile_fmt = 'hhhhffBBBIIIQQII'
+        header, payload = self.get_validated_response("GetDeviceChain")
+        tile_fmt = "hhhhffBBBIIIQQII"
         msg_size = len(tile_fmt)
 
         # unpack values from the packets.
-        tile_state = struct.unpack('<B' + MAX_TILES*tile_fmt+'B', payload)
+        tile_state = struct.unpack("<B" + MAX_TILES * tile_fmt + "B", payload)
         start_index = tile_state[0]
         total_count = tile_state[-1]
 
         # extract the tile messages
-        tile_flat = tile_state[1+start_index:1+start_index+total_count*msg_size]
-        tile_msgs = [self.tile_msg(tile_flat[i*msg_size:(i+1)*msg_size]) for i in range(total_count)]
+        tile_flat = tile_state[1 + start_index : 1 + start_index + total_count * msg_size]
+        tile_msgs = [self.tile_msg(tile_flat[i * msg_size : (i + 1) * msg_size]) for i in range(total_count)]
         return tile_msgs
 
     def get_tile_state(self, n_tiles, tile_index=0):
@@ -667,8 +677,8 @@ class LIFXtile(_LIFXeffects):
 
         Default the x, y, and width to 0, 0, and 8.
         """
-        self.payload = struct.pack('<BBBBBB', tile_index, n_tiles, 0, 0, 0, 8)
-        self.generate_and_send('GetTileState64', res_required=True)
+        self.payload = struct.pack("<BBBBBB", tile_index, n_tiles, 0, 0, 0, 8)
+        self.generate_and_send("GetTileState64", res_required=True)
 
         # TODO handle timeouts
         # assume asyncronous
@@ -683,11 +693,11 @@ class LIFXtile(_LIFXeffects):
         Get the tile state, assuming it is available
         """
         # TODO handle timeouts
-        header, payload = self.get_validated_response('GetTileState64', False)
-        tile_vals = struct.unpack('<BBBBB'+TILE_SIZE*'HHHH', payload)
+        header, payload = self.get_validated_response("GetTileState64", False)
+        tile_vals = struct.unpack("<BBBBB" + TILE_SIZE * "HHHH", payload)
 
         tile_index = tile_vals[0]
-        hsbk_list = [hsbk_human(tile_vals[5+4*i:5+4*(i+1)]) for i in range(TILE_SIZE)]
+        hsbk_list = [hsbk_human(tile_vals[5 + 4 * i : 5 + 4 * (i + 1)]) for i in range(TILE_SIZE)]
         return (tile_index, hsbk_list)
 
     def set_tile_state(self, tile_index, length, duration, hsbk_list):
@@ -700,56 +710,62 @@ class LIFXtile(_LIFXeffects):
 
         # Generate the payload and apply it to the device
         struct_tuple = (tile_index, length, 0, 0, 0, 8, duration) + hsbk_tuple
-        self.payload = struct.pack('<BBBBBBI'+TILE_SIZE*'HHHH', *struct_tuple)
-        self.generate_and_send('SetTileState64')
+        self.payload = struct.pack("<BBBBBBI" + TILE_SIZE * "HHHH", *struct_tuple)
+        self.generate_and_send("SetTileState64")
 
     def set_user_position(self, tile_index, user_x, user_y):
         """
         Set the position of a tile.
         """
-        self.payload = struct.pack('<BHff', tile_index, 0, user_x, user_y)
-        self.generate_and_send('SetUserPosition')
+        self.payload = struct.pack("<BHff", tile_index, 0, user_x, user_y)
+        self.generate_and_send("SetUserPosition")
+
 
 def get_device_class(device_type):
-    if device_type == 'bulb':
+    if device_type == "bulb":
         return LIFXbulb
-    elif device_type == 'multizone':
+    elif device_type == "multizone":
         return LIFXmultizone
-    elif device_type == 'tile':
+    elif device_type == "tile":
         return LIFXtile
     else:
-        raise ValueError('Invalid device type: {}'.format(device_type))
+        raise ValueError("Invalid device type: {}".format(device_type))
+
 
 def hsbk_human(hsbk):
     """
     Make hsbk human readable
     """
     hue, sat, brightness, kelvin = hsbk
-    hue *= 360./65535.
-    sat /= 65535.
-    brightness /= 65535.
+    hue *= 360.0 / 65535.0
+    sat /= 65535.0
+    brightness /= 65535.0
     return (hue, sat, brightness, kelvin)
+
 
 def hsbk_machine(hsbk):
     """
     Make hsbk machine readable
     """
     hue, sat, brightness, kelvin = hsbk
-    hue = int(hue*65535/360.) % 65535
-    sat = int(sat*65535)
-    brightness = int(brightness*65535)
+    hue = int(hue * 65535 / 360.0) % 65535
+    sat = int(sat * 65535)
+    brightness = int(brightness * 65535)
     kelvin = int(kelvin)
     return (hue, sat, brightness, kelvin)
 
+
 def mac_int_to_str(mac_int):
-    mac_size = 6 # number of bytes in mac address
-    mac_hex = struct.pack('Q', mac_int)[:mac_size].hex()
-    return ':'.join([mac_hex[2*i:2*i+2] for i in range(mac_size)])
+    mac_size = 6  # number of bytes in mac address
+    mac_hex = struct.pack("Q", mac_int)[:mac_size].hex()
+    return ":".join([mac_hex[2 * i : 2 * i + 2] for i in range(mac_size)])
+
 
 def mac_str_to_int(mac_str):
     # Swap endianness, then convert to an integer
-    hex_str = '0x' + ''.join(reversed(mac_str.split(':')))
+    hex_str = "0x" + "".join(reversed(mac_str.split(":")))
     return int(hex_str, 16)
+
 
 def rgba2hsbk(rgba_tuple, kelvin):
     """
@@ -765,15 +781,15 @@ def rgba2hsbk(rgba_tuple, kelvin):
 
     # Get the hue
     hue = 0
-    h_scale = 60.
+    h_scale = 60.0
     if max_col == min_col:
         hue = 0.0
     elif max_col == red:
-        hue = h_scale * ((green - blue)/(max_col - min_col))
+        hue = h_scale * ((green - blue) / (max_col - min_col))
     elif max_col == green:
-        hue = h_scale * (2 + (blue - red)/(max_col - min_col))
+        hue = h_scale * (2 + (blue - red) / (max_col - min_col))
     elif max_col == blue:
-        hue = h_scale * (4 + (red - green)/(max_col - min_col))
+        hue = h_scale * (4 + (red - green) / (max_col - min_col))
 
     # Fix wrapping for hue
     while hue > 360:
@@ -782,12 +798,11 @@ def rgba2hsbk(rgba_tuple, kelvin):
         hue += 360
 
     # get the saturation
-    sat = 0.
+    sat = 0.0
     if max_col:
-        sat = (max_col - min_col)/max_col
+        sat = (max_col - min_col) / max_col
 
     # brightness
     brightness = max_col
 
     return (hue, sat, brightness, kelvin)
-
