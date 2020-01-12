@@ -230,7 +230,7 @@ class IPMonitor(object):
 
 
 if __name__ == "__main__":
-    monitor = IPMonitor(os.path.join(os.environ["HOME"], ".lifx/monitor_mac.yaml"))
+    monitor = IPMonitor(os.path.join(os.environ["HOME"], ".lifx", "monitor_mac.yaml"))
     # monitor.startup()
     while True:
         monitor.update()

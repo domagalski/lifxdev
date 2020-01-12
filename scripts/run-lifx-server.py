@@ -618,6 +618,6 @@ class LIFXProcessServer(object):
 
 
 if __name__ == "__main__":
-    avail_proc_filename = os.path.join(os.environ["HOME"], ".lifx/processes.yaml")
+    avail_proc_filename = os.path.join(os.environ["HOME"], ".lifx", "processes.yaml")
     server = LIFXProcessServer(avail_proc_filename)
     server.loop()

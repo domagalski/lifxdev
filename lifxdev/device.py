@@ -21,7 +21,7 @@ MAX_TILES = 16
 TILE_SIZE = 64
 SOCKET_TIMEOUT = 1
 DEFAULT_PORT = 56700
-DEFAULT_CONFIG = os.path.join(os.environ["HOME"], ".lifx/device_config.yaml")
+DEFAULT_CONFIG = os.path.join(os.environ["HOME"], ".lifx", "device_config.yaml")
 
 WAVEFORMS = {
     "SAW": 0,
@@ -224,7 +224,7 @@ class DeviceManager(LIFXdevice):
         self.device_type = "manager"
 
         # get the products file from the lifx github
-        products = os.path.join(os.environ["HOME"], ".lifx/products.json")
+        products = os.path.join(os.environ["HOME"], ".lifx", "products.json")
         if not os.path.exists(products):
             os.system("mkdir -pv {}".format(os.path.dirname(products)))
             product_url = "https://raw.githubusercontent.com/LIFX/products/master/products.json"
