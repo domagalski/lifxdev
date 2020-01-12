@@ -171,7 +171,7 @@ the `home` command. An example of an address for this would be a personal cell
 phone.
 * The `alarm` field is a list of MAC addresses that trigger the `alarm`
 command. I have the MAC address of the person from the bad hookup that inspired
-this functionality.
+this functionality in my `alarm` list.
 
 #### Configuring the DHCP script trigger
 
