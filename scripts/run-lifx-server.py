@@ -11,13 +11,14 @@ import numpy as np
 from matplotlib import cm
 from numpy.random import random, shuffle
 
-from lifxdev import DeviceManager, rgba2hsbk
+from lifxdev import DeviceManager, rgba2hsbk, get_logger
 
 WHITE_KELVIN = 5000
 
 
 class LIFXProcessServer(object):
     def __init__(self, avail_proc_yaml_file):
+        self.logger = get_logger()
         self.avail_proc_yaml_file = avail_proc_yaml_file
         self.reload_conf()
 
@@ -74,6 +75,8 @@ class LIFXProcessServer(object):
             return True
 
     def command_thread(self, conn, addr):
+        self.logger.info("Received connection from address: {}:{}".format(*addr))
+
         # Welcome message
         welcome_msg = str.encode(
             "\n".join(["Welcome to the LIFX process server.", "Type 'help' for a list of commands.\n\n"])
@@ -96,6 +99,8 @@ class LIFXProcessServer(object):
                 # telnet adds a carraige return to commands
                 command = command.rstrip("\r")
                 loop_active = self.run_command(command, conn, addr)
+
+        self.logger.info("Closing connection to address: {}:{}".format(*addr))
 
     def conn_send(self, conn, send_bytes):
         try:
@@ -131,7 +136,7 @@ class LIFXProcessServer(object):
             proc_name = list(self.running_procs.keys()).pop()
             proc_spr = self.running_procs.pop(proc_name)["proc"]
             proc_spr.terminate()
-        return self.send_reply("Killing all running processes.", conn)
+        return self.send_reply("Killing all running processes.", conn, self.logger.info)
 
     def list_cmaps(self, conn):
         cmap_list_str = 'Available color maps (append "_r" for reverse order).\n'
@@ -215,12 +220,22 @@ class LIFXProcessServer(object):
             sys.exit()
 
     def reload_conf(self, conn=None):
-        with open(self.avail_proc_yaml_file) as f:
-            self.avail_procs = yaml.load(f)
-        self.avail_proc_dir = self.avail_procs.pop("PROC_DIR")
+        if os.path.exists(self.avail_proc_yaml_file):
+            with open(self.avail_proc_yaml_file) as f:
+                self.avail_procs = yaml.safe_load(f)
+            self.avail_proc_dir = self.avail_procs.pop("PROC_DIR")
+            msg = "Process configuration reloaded."
+            log_function = self.logger.info
+
+        else:
+            self.avail_procs = {}
+            self.avail_proc_dir = ""
+            msg = "Configuration file not found: {}".format(self.avail_proc_yaml_file)
+            log_function = self.logger.warning
+            log_function("No available processes.")
 
         if conn is not None:
-            return self.send_reply("Process configuration reloaded.", conn)
+            return self.send_reply(msg, conn, log_function)
         else:
             return True
 
@@ -259,7 +274,7 @@ class LIFXProcessServer(object):
                 proc_spr = self.running_procs.pop(proc_name)["proc"]
                 proc_spr.terminate()
 
-            self.send_reply("Shutting down LIFX process server.", conn)
+            self.send_reply("Shutting down LIFX process server.", conn, self.logger.info)
 
             # Not the cleanest exit, but works
             conn.close()
@@ -500,7 +515,9 @@ class LIFXProcessServer(object):
         else:
             return "Device {} not in device list.".format(device_name)
 
-    def send_reply(self, reply_str, conn):
+    def send_reply(self, reply_str, conn, log_function=None):
+        if log_function is not None:
+            log_function(reply_str)
         reply_bytes = str.encode(reply_str + "\n")
         reply_bytes += self.prompt
         return self.conn_send(conn, reply_bytes)
@@ -531,7 +548,11 @@ class LIFXProcessServer(object):
         proc_script = self.avail_procs[proc_name]["filename"]
         if proc_script[0] != "/":
             proc_script = os.path.join(self.avail_proc_dir, proc_script)
-        cmd_list = [proc_script] + proc_args
+
+        if not os.path.exists(proc_script):
+            return "Can't start script {}. File '{}' does not exist.".format(proc_name, proc_script)
+
+        cmd_list = [sys.executable, proc_script] + proc_args
 
         # ongoing processes get instantly put in the running proccess queue
         if self.avail_procs[proc_name]["ongoing"]:
@@ -539,7 +560,9 @@ class LIFXProcessServer(object):
                 "proc": spr.Popen(cmd_list, stdout=spr.PIPE, stderr=spr.PIPE),
                 "devices": self.avail_procs[proc_name]["devices"][:],
             }
-            return "Successfully started process {}.".format(proc_name)
+            msg = "Successfully started process {}.".format(proc_name)
+            self.logger.info(msg)
+            return msg
         else:  # one shot processes run quickly and exit
             oneshot = spr.Popen(cmd_list, stdout=spr.PIPE, stderr=spr.PIPE)
             stdout, stderr = oneshot.communicate()
@@ -550,6 +573,7 @@ class LIFXProcessServer(object):
                 status_str += "{} stderr:\n{}".format(proc_name, bytes.decode(stderr))
             if not len(status_str):
                 status_str = "Process {} exited successfully.".format(proc_name)
+                self.logger.info(status_str)
             return status_str
 
     def stop_proc(self, proc_name):
@@ -559,7 +583,9 @@ class LIFXProcessServer(object):
 
         proc_spr = self.running_procs.pop(proc_name)["proc"]
         proc_spr.terminate()
-        return "Successfully stopped process {}.".format(proc_name)
+        msg = "Successfully stopped process {}.".format(proc_name)
+        self.logger.info(msg)
+        return msg
 
 
 if __name__ == "__main__":

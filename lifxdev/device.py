@@ -11,6 +11,7 @@ import yaml
 from matplotlib import cm
 
 from .packet import LIFXpacket, RESPONSE_TYPES
+from .exceptions import LIFXDeviceConfigError
 
 logger = logging.getLogger(__name__)  # .addHandler(logging.NullHandler())
 logger.setLevel("CRITICAL")
@@ -364,8 +365,18 @@ class DeviceManager(LIFXdevice):
         self.groups dictionaries with a device list and group tree.
         """
         for name in device_dict:
+            if "type" not in device_dict[name]:
+                raise LIFXDeviceConfigError(
+                    "The 'type' field is missing from device/group: '{}'".format(name)
+                )
+
             # recursive case is a device group
             if device_dict[name]["type"] == "group":
+                if "devices" not in device_dict[name]:
+                    raise LIFXDeviceConfigError(
+                        "The 'devices' field is missing from group: '{}'".format(name)
+                    )
+
                 self.groups[name] = []
                 for device in device_dict[name]["devices"]:
                     # get the name and device type
@@ -378,6 +389,12 @@ class DeviceManager(LIFXdevice):
 
             # base case is an individual device
             else:
+                for key in ["ip", "mac"]:
+                    if key not in device_dict[name]:
+                        raise LIFXDeviceConfigError(
+                            "The '{}' field is missing from device: '{}'".format(key, name)
+                        )
+
                 mac = device_dict[name]["mac"]
                 ip = device_dict[name]["ip"]
                 device_class = get_device_class(device_dict[name]["type"])
@@ -567,7 +584,7 @@ class LIFXmultizone(_LIFXeffects):
         color_count = multi_state[2]
 
         # convert hsbk
-        hsbk_list = [hsbk_human(multi_state[3 + 4 * i : 3 + 4 * (i + 1)]) for i in range(MAX_ZONES)]
+        hsbk_list = [hsbk_human(multi_state[3 + 4 * i : 3 + 4 * (i + 1)]) for i in range(MAX_ZONES)]  # noqa
 
         self.n_zones = n_zones
         return (n_zones, index, color_count, hsbk_list)
@@ -667,8 +684,10 @@ class LIFXtile(_LIFXeffects):
         total_count = tile_state[-1]
 
         # extract the tile messages
-        tile_flat = tile_state[1 + start_index : 1 + start_index + total_count * msg_size]
-        tile_msgs = [self.tile_msg(tile_flat[i * msg_size : (i + 1) * msg_size]) for i in range(total_count)]
+        tile_flat = tile_state[1 + start_index : 1 + start_index + total_count * msg_size]  # noqa
+        tile_msgs = [
+            self.tile_msg(tile_flat[i * msg_size : (i + 1) * msg_size]) for i in range(total_count)  # noqa
+        ]
         return tile_msgs
 
     def get_tile_state(self, n_tiles, tile_index=0):
@@ -697,7 +716,7 @@ class LIFXtile(_LIFXeffects):
         tile_vals = struct.unpack("<BBBBB" + TILE_SIZE * "HHHH", payload)
 
         tile_index = tile_vals[0]
-        hsbk_list = [hsbk_human(tile_vals[5 + 4 * i : 5 + 4 * (i + 1)]) for i in range(TILE_SIZE)]
+        hsbk_list = [hsbk_human(tile_vals[5 + 4 * i : 5 + 4 * (i + 1)]) for i in range(TILE_SIZE)]  # noqa
         return (tile_index, hsbk_list)
 
     def set_tile_state(self, tile_index, length, duration, hsbk_list):
@@ -758,7 +777,7 @@ def hsbk_machine(hsbk):
 def mac_int_to_str(mac_int):
     mac_size = 6  # number of bytes in mac address
     mac_hex = struct.pack("Q", mac_int)[:mac_size].hex()
-    return ":".join([mac_hex[2 * i : 2 * i + 2] for i in range(mac_size)])
+    return ":".join([mac_hex[2 * i : 2 * i + 2] for i in range(mac_size)])  # noqa
 
 
 def mac_str_to_int(mac_str):
