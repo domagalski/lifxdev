@@ -12,7 +12,7 @@ import yaml
 from lifxdev.logs import get_logger
 
 DEFAULT_LEASE_FILE = "/etc/pihole/dhcp.leases"
-DEFAULT_GRACE_MINUTES = 5
+DEFAULT_GRACE_MINUTES = 0
 DEFAULT_LIFX_ADDR = "127.0.0.1"
 DEFAULT_LIFX_PORT = 16384
 DEFAULT_PORT = 16385
