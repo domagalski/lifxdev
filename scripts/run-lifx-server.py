@@ -11,7 +11,7 @@ import numpy as np
 from matplotlib import cm
 from numpy.random import random, shuffle
 
-from lifxdev import DeviceManager, rgba2hsbk, get_logger
+from lifxdev import DeviceManager, rgba2hsbk, get_logger, LIFXProcessConfigError
 
 WHITE_KELVIN = 5000
 
@@ -20,7 +20,7 @@ class LIFXProcessServer(object):
     def __init__(self, avail_proc_yaml_file):
         self.logger = get_logger()
         self.avail_proc_yaml_file = avail_proc_yaml_file
-        self.reload_conf()
+        self.reload_conf(raise_err=True)
 
         # port to listen on
         self.port = 16384
@@ -172,6 +172,11 @@ class LIFXProcessServer(object):
         if len(avail_procs):
             proc_list_str += "Available processes:\n"
             for proc in avail_procs:
+                if "filename" not in self.avail_procs[proc]:
+                    msg = "Missing 'filename' field for process '{}'".format(proc)
+                    self.logger.error(msg)
+                    continue
+
                 proc_list_str += "{}: {}\n".format(proc, self.avail_procs[proc]["filename"])
 
             if len(self.running_procs):
@@ -196,6 +201,11 @@ class LIFXProcessServer(object):
         if len(self.running_procs):
             proc_list_str += "Running processes:\n"
             for proc in self.running_procs:
+                if "filename" not in self.avail_procs[proc]:
+                    msg = "Missing 'filename' field for process '{}'".format(proc)
+                    self.logger.error(msg)
+                    continue
+
                 proc_list_str += "{}: {}\n".format(proc, self.avail_procs[proc]["filename"])
 
         # strip the last endline (the prompt has one)
@@ -219,20 +229,30 @@ class LIFXProcessServer(object):
         except KeyboardInterrupt:
             sys.exit()
 
-    def reload_conf(self, conn=None):
+    def reload_conf(self, conn=None, raise_err=False):
         if os.path.exists(self.avail_proc_yaml_file):
             with open(self.avail_proc_yaml_file) as f:
                 self.avail_procs = yaml.safe_load(f)
-            self.avail_proc_dir = self.avail_procs.pop("PROC_DIR")
-            msg = "Process configuration reloaded."
-            log_function = self.logger.info
+
+            if "PROC_DIR" in self.avail_procs:
+                self.avail_proc_dir = self.avail_procs.pop("PROC_DIR")
+                msg = "Process configuration reloaded."
+                log_function = self.logger.info
+            else:
+                msg = "Invalid process configuration: PROC_DIR missing."
+                log_function = self.logger.error
+                if raise_err:
+                    raise LIFXProcessConfigError(msg)
 
         else:
             self.avail_procs = {}
             self.avail_proc_dir = ""
             msg = "Configuration file not found: {}".format(self.avail_proc_yaml_file)
-            log_function = self.logger.warning
-            log_function("No available processes.")
+            log_function = self.logger.error
+            if raise_err:
+                raise LIFXProcessConfigError(msg)
+            else:
+                log_function("No available processes.")
 
         if conn is not None:
             return self.send_reply(msg, conn, log_function)
@@ -539,26 +559,35 @@ class LIFXProcessServer(object):
         if proc_name not in self.avail_procs:
             return "Process {} not available.".format(proc_name)
 
-        for device in self.avail_procs[proc_name]["devices"]:
+        for device in self.avail_procs[proc_name].get("devices", []):
             for run_proc in self.running_procs:
-                if device in self.running_procs[run_proc]["devices"]:
+                if device in self.running_procs[run_proc].get("devices", []):
                     return "Process {} conflicts with {}.".format(proc_name, run_proc)
 
         # if script is not an abspath, it's in a directory
+        if "filename" not in self.avail_procs[proc_name]:
+            msg = "Missing 'filename' field for process '{}'".format(proc_name)
+            self.logger.error(msg)
+            return msg
+
         proc_script = self.avail_procs[proc_name]["filename"]
         if proc_script[0] != "/":
             proc_script = os.path.join(self.avail_proc_dir, proc_script)
 
         if not os.path.exists(proc_script):
-            return "Can't start script {}. File '{}' does not exist.".format(proc_name, proc_script)
+            msg = "Can't start script {}. File '{}' does not exist.".format(proc_name, proc_script)
+            self.logger.error(msg)
+            return msg
 
-        cmd_list = [sys.executable, proc_script] + proc_args
+        cmd_list = [proc_script] + proc_args
+        if proc_script.endswith(".py"):
+            cmd_list.insert(0, sys.executable)
 
         # ongoing processes get instantly put in the running proccess queue
-        if self.avail_procs[proc_name]["ongoing"]:
+        if self.avail_procs[proc_name].get("ongoing", False):
             self.running_procs[proc_name] = {
                 "proc": spr.Popen(cmd_list, stdout=spr.PIPE, stderr=spr.PIPE),
-                "devices": self.avail_procs[proc_name]["devices"][:],
+                "devices": self.avail_procs[proc_name].get("devices", [])[:],
             }
             msg = "Successfully started process {}.".format(proc_name)
             self.logger.info(msg)

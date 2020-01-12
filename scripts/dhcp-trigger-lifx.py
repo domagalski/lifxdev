@@ -180,9 +180,15 @@ class IPMonitor(object):
         ip_info = bytes.decode(conn.recv(1024)).rstrip("\n").rstrip("\r")
         conn.close()
 
-        state, mac, ipaddr = ip_info.split()[:3]
+        ip_info_split = ip_info.split()
+        if ip_info_split <= 3:
+            return
+
+        state, mac, ipaddr = ip_info_split[:3]
         mac = mac.lower()
-        if state == "del":
+
+        # NOTE: disconnect states must be sent from the phone via SSH over mobile data.
+        if state not in ["add", "old", "disconnect"]:
             return
 
         updater_handler = Thread(target=self.updater_thread, args=(state, mac, ipaddr))
@@ -191,7 +197,7 @@ class IPMonitor(object):
 
     def updater_thread(self, state, mac, ipaddr):
         """
-        pass
+        TODO: write the docstring later lmao
         """
         ip_info = " ".join([state, mac, ipaddr])
         if mac in self.mac_addrs:
