@@ -173,7 +173,7 @@ phone.
 command. I have the MAC address of the person from the bad hookup that inspired
 this functionality.
 
-#### Configuring the DHCP script trigger.
+#### Configuring the DHCP script trigger
 
 The `dhcp-trigger-lifx.py` script needs TCP packets of the following format
 sent to it:
