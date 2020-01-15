@@ -182,7 +182,7 @@ class IPMonitor(object):
         conn.close()
 
         ip_info_split = ip_info.split()
-        if len(ip_info_split) <= 3:
+        if len(ip_info_split) < 3:
             return
 
         state, mac, ipaddr = ip_info_split[:3]
