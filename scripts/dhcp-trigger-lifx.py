@@ -10,6 +10,7 @@ from threading import Thread
 import yaml
 
 from lifxdev.logs import get_logger
+from lifxdev.util import is_str_ipaddr, is_str_mac
 
 DEFAULT_LEASE_FILE = "/etc/pihole/dhcp.leases"
 DEFAULT_GRACE_MINUTES = 0
@@ -29,7 +30,7 @@ class IPMonitor(object):
             with open(self.monitor_filename) as f:
                 config = yaml.safe_load(f)
         except Exception:
-            self.logger.warning("Cannont load config file: {}".format(self.monitor_filename))
+            self.logger.warning(f"Cannont load config file: {self.monitor_filename}")
             config = {}
 
         self.init_mac_dict()
@@ -117,13 +118,13 @@ class IPMonitor(object):
 
         # rising edge
         if current_state and not initial_state:
-            self.logger.info("Device {} with IP {} online.".format(mac, self.get_ip(mac)))
+            self.logger.info(f"Device {mac} with IP {self.get_ip(mac)} online.")
             self.mac_addrs[mac]["last_connect"] = time.time()
             self.check_state(True)
 
         # falling edge
         if not current_state and initial_state:
-            self.logger.info("Device {} with IP {} offline.".format(mac, self.get_ip(mac)))
+            self.logger.info(f"Device {mac} with IP {self.get_ip(mac)} offline.")
             self.mac_addrs[mac]["last_disconnect"] = time.time()
             self.check_state(False)
 
@@ -148,7 +149,7 @@ class IPMonitor(object):
                 is_online = self.is_reachable(ipaddr)
                 if is_online:
                     self.mac_addrs[mac]["last_connect"] = time.time()
-                    self.logger.info("Device {} with IP {} online.".format(mac, self.get_ip(mac)))
+                    self.logger.info(f"Device {mac} with IP {self.get_ip(mac)} online.")
 
                 self.mac_addrs[mac]["thread"] = th.Thread(target=self.monitor_mac, args=(mac, is_online))
                 self.mac_addrs[mac]["thread"].daemon = True
@@ -168,7 +169,7 @@ class IPMonitor(object):
             s.close()
         except ConnectionRefusedError:
             self.logger.error(
-                "Cannot send command '{}' to LIFX endpoint: {}:{}".format(cmd, self.lifx_addr, self.lifx_port)
+                f"Cannot send command {cmd!r} to LIFX endpoint: {self.lifx_addr}:{self.lifx_port}"
             )
 
     def update(self):
@@ -181,15 +182,22 @@ class IPMonitor(object):
         conn.close()
 
         ip_info_split = ip_info.split()
-        if ip_info_split <= 3:
+        if len(ip_info_split) <= 3:
             return
 
         state, mac, ipaddr = ip_info_split[:3]
         mac = mac.lower()
+        if not (is_str_ipaddr(ipaddr) and is_str_mac(mac)):
+            return
 
-        # NOTE: disconnect states must be sent from the phone via SSH over mobile data.
+        # NOTE: disconnect states are not sent via pihole
         if state not in ["add", "old", "disconnect"]:
             return
+
+        msg = f"Device state: {state} {mac} {ipaddr}"
+        if len(ip_info_split) > 3:
+            msg += f" {ip_info_split[3]}"
+        self.logger.info(msg)
 
         updater_handler = Thread(target=self.updater_thread, args=(state, mac, ipaddr))
         updater_handler.daemon = True
@@ -223,10 +231,10 @@ class IPMonitor(object):
                     time.sleep(max(0, 1 - (time.time() - iter_start)))
 
             if is_reachable:
-                self.logger.info("Alarm activated: {}".format(mac))
+                self.logger.info(f"Alarm activated: {mac}")
                 self.send_cmd(self.lifx_commands["alarm"])
             else:
-                self.logger.info("cannot reach {} at {}.".format(mac, ipaddr))
+                self.logger.info(f"cannot reach {mac} at {ipaddr}.")
 
 
 if __name__ == "__main__":
