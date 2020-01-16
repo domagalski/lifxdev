@@ -45,6 +45,9 @@ class LIFXProcessServer(object):
         self.cmap_names = list(set(self.cmap_names))
 
     def check_running_procs(self, conn, send_reply=True):
+        """
+        Check running proccesses.
+        """
         running_proc_names = list(self.running_procs.keys())
 
         check_str = ""
@@ -62,9 +65,11 @@ class LIFXProcessServer(object):
             if status_code:
                 stdout, stderr = proc.communicate()
                 if len(stdout):
-                    check_str += "{} stdout:\n{}\n".format(proc_name, bytes.decode(stdout))
+                    stdout_str = bytes.decode(stdout)
+                    check_str += f"{proc_name} stdout:\n{stdout_str}\n"
                 if len(stderr):
-                    check_str += "{} stderr:\n{}\n".format(proc_name, bytes.decode(stderr))
+                    stderr_str = bytes.decode(stderr)
+                    check_str += f"{proc_name} stderr:\n{stderr_str}\n"
 
         if not len(check_str) and send_reply:
             check_str = "No processes with errors.\n"
@@ -136,7 +141,7 @@ class LIFXProcessServer(object):
             proc_name = list(self.running_procs.keys()).pop()
             proc_spr = self.running_procs.pop(proc_name)["proc"]
             proc_spr.terminate()
-        return self.send_reply("Killing all running processes.", conn, self.logger.info)
+        return self.send_reply("Killing all running processes.", conn, log_function=self.logger.info)
 
     def list_cmaps(self, conn):
         cmap_list_str = 'Available color maps (append "_r" for reverse order).\n'
@@ -177,7 +182,8 @@ class LIFXProcessServer(object):
                     self.logger.error(msg)
                     continue
 
-                proc_list_str += "{}: {}\n".format(proc, self.avail_procs[proc]["filename"])
+                proc_fname = self.avail_procs[proc]["filename"]
+                proc_list_str += f"{proc}: {proc_fname}\n"
 
             if len(self.running_procs):
                 proc_list_str += "\n"
@@ -202,11 +208,12 @@ class LIFXProcessServer(object):
             proc_list_str += "Running processes:\n"
             for proc in self.running_procs:
                 if "filename" not in self.avail_procs[proc]:
-                    msg = "Missing 'filename' field for process '{}'".format(proc)
+                    msg = f"Missing 'filename' field for process {proc!r}"
                     self.logger.error(msg)
                     continue
 
-                proc_list_str += "{}: {}\n".format(proc, self.avail_procs[proc]["filename"])
+                proc_fname = self.avail_procs[proc]["filename"]
+                proc_list_str += f"{proc}: {proc_fname}\n"
 
         # strip the last endline (the prompt has one)
         return self.send_reply(proc_list_str[:-1], conn)
@@ -247,7 +254,7 @@ class LIFXProcessServer(object):
         else:
             self.avail_procs = {}
             self.avail_proc_dir = ""
-            msg = "Configuration file not found: {}".format(self.avail_proc_yaml_file)
+            msg = f"Configuration file not found: {self.avail_proc_yaml_file}"
             log_function = self.logger.error
             if raise_err:
                 raise LIFXProcessConfigError(msg)
@@ -255,11 +262,11 @@ class LIFXProcessServer(object):
                 log_function("No available processes.")
 
         if conn is not None:
-            return self.send_reply(msg, conn, log_function)
+            return self.send_reply(msg, conn, log_function=log_function)
         else:
             return True
 
-    def run_command(self, command, conn, addr):
+    def run_command(self, command, conn, addr, interactive=True):
         """
         Run a command.
 
@@ -294,7 +301,7 @@ class LIFXProcessServer(object):
                 proc_spr = self.running_procs.pop(proc_name)["proc"]
                 proc_spr.terminate()
 
-            self.send_reply("Shutting down LIFX process server.", conn, self.logger.info)
+            self.send_reply("Shutting down LIFX process server.", conn, log_function=self.logger.info)
 
             # Not the cleanest exit, but works
             conn.close()
@@ -351,23 +358,26 @@ class LIFXProcessServer(object):
             return self.reload_conf(conn)
 
         else:
-            return self.run_command_with_args(command, conn)
+            return self.run_command_with_args(command, conn, interactive)
 
-    def run_command_with_args(self, command, conn):
+    def run_command_with_args(self, command, conn, interactive=True):
         """
         Run a command with arguments.
         """
         cmd_list = command.split()
 
-        if cmd_list[0] == "restart":
-            return self.send_reply(self.restart_proc(cmd_list[1:]), conn)
+        if cmd_list[0] == "api":
+            return self.run_command(" ".join(cmd_list[1:]), conn, "", False)
+
+        elif cmd_list[0] == "restart":
+            return self.send_reply(self.restart_proc(cmd_list[1:], interactive), conn, interactive)
 
         elif cmd_list[0] == "start":
-            return self.send_reply(self.start_proc(cmd_list[1:]), conn)
+            return self.send_reply(self.start_proc(cmd_list[1:], interactive), conn, interactive)
 
         elif cmd_list[0] == "stop":
             if len(cmd_list) == 2:
-                return self.send_reply(self.stop_proc(cmd_list[1]), conn)
+                return self.send_reply(self.stop_proc(cmd_list[1], interactive), conn, interactive)
             else:
                 return self.send_reply("No process to stop.", conn)
 
@@ -418,9 +428,12 @@ class LIFXProcessServer(object):
                 return self.send_reply("Missing arguments.", conn)
 
         elif cmd_list[0] == "power":
-            if len(cmd_list) == 3 or len(cmd_list) == 4:
+            if 2 <= len(cmd_list) <= 4:
                 dev_name = cmd_list[1]
-                power_state = cmd_list[2]
+                if len(cmd_list) > 2:
+                    power_state = cmd_list[2]
+                else:
+                    power_state = ""
 
                 if len(cmd_list) == 4:
                     try:
@@ -430,7 +443,8 @@ class LIFXProcessServer(object):
                 else:
                     duration = 0
 
-                return self.send_reply(self.set_power_state(dev_name, power_state, duration), conn)
+                power_str = self.set_power_state(dev_name, power_state, duration, interactive)
+                return self.send_reply(power_str, conn, interactive)
 
             elif len(cmd_list) > 4:
                 return self.send_reply("Too many arguments.", conn)
@@ -443,7 +457,7 @@ class LIFXProcessServer(object):
     def set_cmap(self, device_name, cmap_name, duration=0):
         cmap_name = cmap_name.replace("-", "_")
         if cmap_name not in self.cmap_names:
-            return "Invalid color map: {}".format(cmap_name)
+            return f"Invalid color map: {cmap_name}"
         cmap = cm.get_cmap(cmap_name)
 
         if device_name in self.device_manager.groups:
@@ -468,18 +482,18 @@ class LIFXProcessServer(object):
                 elif device.device_type == "multizone":
                     device.set_cmap(cmap_name, duration)
 
-            return "Device group {} color map is {}.".format(device_name, cmap_name)
+            return f"Device group {device_name} color map is {cmap_name}."
 
         if device_name in self.device_manager.devices:
             device = self.device_manager.devices[device_name]
             if device.device_type == "multizone":
                 device.set_cmap(cmap_name, duration)
-                return "Device {} color map is {}.".format(device_name, cmap_name)
+                return f"Device {device_name} color map is {cmap_name}."
             else:
                 hsbk = rgba2hsbk(cmap(random()), WHITE_KELVIN)
                 return self.set_color(device_name, hsbk, duration)
         else:
-            return "Device {} not in device list.".format(device_name)
+            return "Device {device_name} not in device list."
 
     def set_color(self, device_name, hsbk, duration=0):
         hue, sat, brightness, kelvin = hsbk
@@ -496,77 +510,112 @@ class LIFXProcessServer(object):
             return "Kelvin must be between 2500 and 9000."
 
         # color parameters for response message
-        color_param_str = "Hue: {}\n".format(hue)
-        color_param_str += "Saturation: {}\n".format(sat)
-        color_param_str += "Brightness: {}\n".format(brightness)
-        color_param_str += "Kelvin: {}".format(kelvin)
+        color_param_str = f"Hue: {hue}\n"
+        color_param_str += f"Saturation: {sat}\n"
+        color_param_str += f"Brightness: {brightness}\n"
+        color_param_str += f"Kelvin: {kelvin}"
 
         if device_name in self.device_manager.groups:
             for dev_name, dev_type in self.device_manager.groups[device_name]:
                 self.set_color(dev_name, hsbk, duration)
-            response = "Device group {} color parameters:\n".format(device_name)
+            response = f"Device group {device_name} color parameters:\n"
             response += color_param_str
             return response
 
         if device_name in self.device_manager.devices:
             device = self.device_manager.devices[device_name]
             device.set_color(hsbk, duration)
-            response = "Device {} color parameters:\n".format(device_name)
+            response = f"Device {device_name} color parameters:\n"
             response += color_param_str
             return response
         else:
-            return "Device {} not in device list.".format(device_name)
+            return f"Device {device_name} not in device list."
 
-    def set_power_state(self, device_name, power_state, duration=0):
-        power_state_dict = {"on": True, "off": False}
+    def set_power_state(self, device_name, power_state, duration=0, interactive=True):
+        power_state_dict = {"on": True, "off": False, "": None}
         if power_state not in power_state_dict:
-            return "Invalid power state: {}".format(power_state)
+            if interactive:
+                return f"Invalid power state: {power_state}"
+            else:
+                return "0"
+
+        if power_state_dict[power_state] is None:
+            if interactive:
+                return "Cannot query."
+            else:
+                return "0"
 
         if device_name in self.device_manager.groups:
             for dev_name, dev_type in self.device_manager.groups[device_name]:
                 self.set_power_state(dev_name, power_state, duration)
-            return "Device group {} set {}.".format(device_name, power_state)
+
+            if interactive:
+                return f"Device group {device_name} set {power_state}."
+            else:
+                return str(int(power_state_dict[power_state]))
 
         if device_name in self.device_manager.devices:
             state = power_state_dict[power_state]
             device = self.device_manager.devices[device_name]
             device.set_power(state, duration)
-            return "Device {} set {}.".format(device_name, power_state)
-        else:
-            return "Device {} not in device list.".format(device_name)
 
-    def send_reply(self, reply_str, conn, log_function=None):
-        if log_function is not None:
+            if interactive:
+                return f"Device {device_name} set {power_state}."
+            else:
+                return str(int(power_state_dict[power_state]))
+        else:
+            if interactive:
+                return f"Device {device_name} not in device list."
+            else:
+                return "0"
+
+    def send_reply(self, reply_str, conn, interactive=True, log_function=None):
+        if log_function is not None and interactive:
             log_function(reply_str)
-        reply_bytes = str.encode(reply_str + "\n")
-        reply_bytes += self.prompt
+        reply_bytes = str.encode(reply_str + interactive * "\n")
+
+        if interactive:
+            reply_bytes += self.prompt
+
         return self.conn_send(conn, reply_bytes)
 
-    def restart_proc(self, proc_args):
+    def restart_proc(self, proc_args, interactive=True):
         self.stop_proc(proc_args[0])
-        return self.start_proc(proc_args).replace("start", "restart")
+        return self.start_proc(proc_args, interactive).replace("start", "restart")
 
-    def start_proc(self, proc_args):
+    def start_proc(self, proc_args, interactive=True):
         if len(proc_args):
             proc_name = proc_args.pop(0)
         else:
-            return "No process to start."
+            if interactive:
+                return "No process to start."
+            else:
+                return "0"
 
         # don't start a process if already running
         if proc_name in self.running_procs:
-            return "Process {} already running.".format(proc_name)
+            if interactive:
+                return f"Process {proc_name} already running."
+            else:
+                return "1"
 
         if proc_name not in self.avail_procs:
-            return "Process {} not available.".format(proc_name)
+            if interactive:
+                return f"Process {proc_name} not available."
+            else:
+                return "0"
 
         for device in self.avail_procs[proc_name].get("devices", []):
             for run_proc in self.running_procs:
                 if device in self.running_procs[run_proc].get("devices", []):
-                    return "Process {} conflicts with {}.".format(proc_name, run_proc)
+                    if interactive:
+                        return f"Process {proc_name} conflicts with {run_proc}."
+                    else:
+                        return "0"
 
         # if script is not an abspath, it's in a directory
         if "filename" not in self.avail_procs[proc_name]:
-            msg = "Missing 'filename' field for process '{}'".format(proc_name)
+            msg = f"Missing 'filename' field for process {proc_name!r}"
             self.logger.error(msg)
             return msg
 
@@ -575,7 +624,7 @@ class LIFXProcessServer(object):
             proc_script = os.path.join(self.avail_proc_dir, proc_script)
 
         if not os.path.exists(proc_script):
-            msg = "Can't start script {}. File '{}' does not exist.".format(proc_name, proc_script)
+            msg = f"Can't start script {proc_name}. File {proc_script!r} does not exist."
             self.logger.error(msg)
             return msg
 
@@ -589,32 +638,48 @@ class LIFXProcessServer(object):
                 "proc": spr.Popen(cmd_list, stdout=spr.PIPE, stderr=spr.PIPE),
                 "devices": self.avail_procs[proc_name].get("devices", [])[:],
             }
-            msg = "Successfully started process {}.".format(proc_name)
+            msg = f"Successfully started process {proc_name}."
             self.logger.info(msg)
-            return msg
+            if interactive:
+                return msg
+            else:
+                return "1"
         else:  # one shot processes run quickly and exit
             oneshot = spr.Popen(cmd_list, stdout=spr.PIPE, stderr=spr.PIPE)
             stdout, stderr = oneshot.communicate()
             status_str = ""
             if len(stdout):
-                status_str += "{} stdout:\n{}\n".format(proc_name, bytes.decode(stdout))
+                stdout_str = bytes.decode(stdout)
+                status_str += f"{proc_name} stdout:\n{stdout_str}\n"
             if len(stderr):
-                status_str += "{} stderr:\n{}".format(proc_name, bytes.decode(stderr))
+                stderr_str = bytes.decode(stderr)
+                status_str += f"{proc_name} stderr:\n{stderr_str}\n"
             if not len(status_str):
-                status_str = "Process {} exited successfully.".format(proc_name)
-                self.logger.info(status_str)
-            return status_str
+                status_str = f"Process {proc_name} exited successfully."
 
-    def stop_proc(self, proc_name):
+            self.logger.info(status_str)
+            if interactive:
+                return status_str
+            else:
+                return "0"
+
+    def stop_proc(self, proc_name, interactive=True):
         # verify that the process is already running
         if proc_name not in self.running_procs:
-            return "Process {} is not running.".format(proc_name)
+            if interactive:
+                return f"Process {proc_name} is not running."
+            else:
+                return "0"
 
         proc_spr = self.running_procs.pop(proc_name)["proc"]
         proc_spr.terminate()
-        msg = "Successfully stopped process {}.".format(proc_name)
+        msg = f"Successfully stopped process {proc_name}."
         self.logger.info(msg)
-        return msg
+
+        if interactive:
+            return f"Successfully stopped process {proc_name}."
+        else:
+            return "0"
 
 
 if __name__ == "__main__":
