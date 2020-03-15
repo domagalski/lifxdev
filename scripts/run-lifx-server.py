@@ -107,7 +107,7 @@ class LIFXProcessServer(object):
 
         self.logger.info("Closing connection to address: {}:{}".format(*addr))
 
-    def conn_send(self, conn, send_bytes):
+    def conn_send(self, conn, send_bytes) -> bool:
         try:
             conn.send(send_bytes)
             return True
@@ -136,12 +136,39 @@ class LIFXProcessServer(object):
         )
         return self.send_reply(help_str, conn)
 
-    def killall(self, conn):
-        while len(self.running_procs):
-            proc_name = list(self.running_procs.keys()).pop()
-            proc_spr = self.running_procs.pop(proc_name)["proc"]
-            proc_spr.terminate()
-        return self.send_reply("Killing all running processes.", conn, log_function=self.logger.info)
+    def killall(self, conn, send_reply: bool = True, kill_immortal: bool = False) -> bool:
+        """Kill all processes, except "immortal processes.
+
+
+        Args:
+            conn: socket connection
+            send_reply: Whether or not to send a reply over conn.
+            kill_immortal: Whether or not to kill processes marked as immortal.
+        """
+        kill_msg = "Killing all running processes."
+        self.logger.info(kill_msg)
+
+        rp_keys = list(self.running_procs.keys())
+        if not rp_keys:
+            msg = "No running processes to kill."
+            if send_reply:
+                return self.send_reply(msg, conn, log_function=self.logger.info)
+            else:
+                return True
+
+        for proc in rp_keys:
+            properties = self.avail_procs.get(proc, {})
+            if kill_immortal or not properties.get("immortal", False):
+                self.logger.info(f"Killing process: {proc}")
+                proc_spr = self.running_procs.pop(proc)["proc"]
+                proc_spr.terminate()
+            else:
+                self.logger.info(f"Immortal process running: {proc}")
+
+        if send_reply:
+            return self.send_reply(kill_msg, conn)
+        else:
+            return True
 
     def list_cmaps(self, conn):
         cmap_list_str = 'Available color maps (append "_r" for reverse order).\n'
@@ -266,9 +293,9 @@ class LIFXProcessServer(object):
         else:
             return True
 
-    def run_command(self, command, conn, addr, interactive=True):
+    def run_command(self, command, conn, addr, interactive=True) -> bool:
         """
-        Run a command.
+        Run a command. Return True if another command can be run afterwards.
 
         Command list:
             help
@@ -296,11 +323,7 @@ class LIFXProcessServer(object):
             if addr[0] != "127.0.0.1":
                 return self.send_reply("Server can only be quit locally.", conn)
 
-            running_proc_names = list(self.running_procs.keys())
-            for proc_name in running_proc_names:
-                proc_spr = self.running_procs.pop(proc_name)["proc"]
-                proc_spr.terminate()
-
+            self.killall(conn, False, True)
             self.send_reply("Shutting down LIFX process server.", conn, log_function=self.logger.info)
 
             # Not the cleanest exit, but works
@@ -338,10 +361,7 @@ class LIFXProcessServer(object):
             return self.list_proc(conn)
 
         elif command == "off":
-            running_proc_names = list(self.running_procs.keys())
-            for proc_name in running_proc_names:
-                proc_spr = self.running_procs.pop(proc_name)["proc"]
-                proc_spr.terminate()
+            self.killall(conn, False)
 
             # retry in case there are some finicky lights
             for i in range(5):
@@ -569,7 +589,7 @@ class LIFXProcessServer(object):
             else:
                 return "0"
 
-    def send_reply(self, reply_str, conn, interactive=True, log_function=None):
+    def send_reply(self, reply_str, conn, interactive=True, log_function=None) -> bool:
         if log_function is not None and interactive:
             log_function(reply_str)
         reply_bytes = str.encode(reply_str + interactive * "\n")

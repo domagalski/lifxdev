@@ -104,6 +104,7 @@ PROC_DIR: directory/where/your/scripts/live
 example-script:
   filename: script_name.py
   ongoing: true/false
+  immortal: true/false
   devices:
     - device-a
     - device-b
@@ -117,9 +118,11 @@ Processes are started in the telnet shell with the command
 immediately after running it and configuring lights or if the script continues
 running indefinitely. It is optional. The `devices` field, also optional,
 lists any devices in `device_config.yaml` that the script contains so that two
-scripts controlling the same devices don't clash. If a script is a Python
-script, then the same Python executable used to run the LIFX server is used to
-run the script. If the script isn't a Python script, then it's run as is.
+scripts controlling the same devices don't clash. The `immortal` field, which
+is optional, determines whether `killall` commands can kill the process. If a
+script is a Python script, then the same Python executable used to run the LIFX
+server is used to run the script. If the script isn't a Python script, then
+it's run as is.
 
 ### ~/.lifx/monitor_mac.yaml
 
