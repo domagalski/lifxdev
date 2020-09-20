@@ -7,7 +7,7 @@ from typing import Union
 https://lan.developer.lifx.com/docs/light-messages
 """
 
-from lifxdev.payload import packet
+from lifxdev.messages import packet
 
 
 @packet.set_message_type(101)

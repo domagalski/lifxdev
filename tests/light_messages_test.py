@@ -3,8 +3,8 @@
 import logging
 import unittest
 
-from lifxdev.payload import packet
-from lifxdev.payload import light_messages
+from lifxdev.messages import packet
+from lifxdev.messages import light_messages
 
 
 class LightMessageTest(unittest.TestCase):
