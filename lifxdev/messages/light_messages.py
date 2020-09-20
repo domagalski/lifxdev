@@ -37,7 +37,7 @@ class SetWaveform(packet.LifxMessage):
     ]
 
 
-@packet.set_message_type(107, is_response=True)
+@packet.set_message_type(107)
 class State(packet.LifxMessage):
     registers: packet.REGISTER_T = [
         ("color", packet.Hsbk(), 1),
@@ -70,7 +70,7 @@ class SetPower(packet.LifxMessage):
         super().set_value(name, value)
 
 
-@packet.set_message_type(118, is_response=True)
+@packet.set_message_type(118)
 class StatePower(packet.LifxMessage):
     registers: packet.REGISTER_T = [("level", packet.LifxType.u16, 1)]
 
@@ -85,7 +85,7 @@ class GetInfrared(packet.LifxMessage):
     pass
 
 
-@packet.set_message_type(121, is_response=True)
+@packet.set_message_type(121)
 class StateInfrared(packet.LifxMessage):
     registers: packet.REGISTER_T = [("brightness", packet.LifxType.u16, 1)]
 

@@ -426,10 +426,12 @@ class LifxResponse(NamedTuple):
     payload: LifxMessage
 
 
-_RESPONSE_CLASSES: Dict[int, Type] = {}
+# Used for parsing responses from LIFX bulbs
+# This maps the protocol header type to a LifxMessage class to generate using bytes
+_MESSAGE_TYPES: Dict[int, Type] = {}
 
 
-def set_message_type(message_type: int, *, is_response: bool = False):
+def set_message_type(message_type: int):
     """Create a LifxMessage class with the message type auto-set.
 
     Args:
@@ -442,9 +444,7 @@ def set_message_type(message_type: int, *, is_response: bool = False):
             pass
 
         _LifxMessage.message_type = message_type
-        if is_response:
-            _RESPONSE_CLASSES[message_type] = _LifxMessage
-
+        _MESSAGE_TYPES[message_type] = _LifxMessage
         return _LifxMessage
 
     return _msg_type_decorator
@@ -499,7 +499,8 @@ class PacketComm:
         protocol_header["type"] = payload.message_type
 
         # Generate the frame
-        frame["tagged"] = bool(mac_addr)
+        # tagged must be true when sending a GetService message
+        frame["tagged"] = bool(mac_addr) or payload.message_type == 2
         frame["source"] = os.getpid() if source is None else source
         frame["size"] = len(frame) + len(frame_address) + len(protocol_header) + len(payload)
 
