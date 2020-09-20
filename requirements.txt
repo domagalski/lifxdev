@@ -1,6 +1,8 @@
 black
 flake8
 pre-commit
+coverage
+pytest
 
 numpy
 PyYAML

@@ -2,12 +2,11 @@
 
 import re
 import struct
+from typing import List
 
 
 def hsbk_human(hsbk: (tuple, list)):
-    """
-    Make hsbk human readable
-    """
+    """Make hsbk human readable"""
     if not isinstance(hsbk, (tuple, list)):
         raise ValueError("hsbk must be a len 4 tuple/list")
 
@@ -22,9 +21,7 @@ def hsbk_human(hsbk: (tuple, list)):
 
 
 def hsbk_machine(hsbk: (tuple, list)):
-    """
-    Make hsbk machine readable
-    """
+    """Make hsbk machine readable"""
     if not isinstance(hsbk, (tuple, list)):
         raise ValueError("hsbk must be a len 4 tuple/list")
 
@@ -65,16 +62,25 @@ def is_str_mac(mac: str):
     return all(nums_valid)
 
 
-def mac_int_to_str(mac_int: int):
+def mac_int_to_str(mac_int: int) -> str:
     mac_size = 6  # number of bytes in mac address
     mac_hex = struct.pack("Q", mac_int)[:mac_size].hex()
     return ":".join([mac_hex[2 * i : 2 * i + 2] for i in range(mac_size)])  # noqa
 
 
-def mac_str_to_int(mac_str: str):
+def mac_str_to_int(mac_str: str) -> int:
     # Swap endianness, then convert to an integer
     hex_str = "0x" + "".join(reversed(mac_str.split(":")))
     return int(hex_str, 16)
+
+
+def mac_str_to_int_list(mac_str: str) -> List[int]:
+    mac_int = mac_str_to_int(mac_str)
+    int_list: List[int] = []
+    for _ in range(8):
+        int_list.append(mac_int % (1 << 8))
+        mac_int = mac_int >> 8
+    return int_list
 
 
 def rgba2hsbk(rgba_tuple: (tuple, list), kelvin: (int, float)):

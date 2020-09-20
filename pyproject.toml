@@ -1,5 +1,5 @@
 [tool.black]
-line-length = 110
+line-length = 100
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -18,7 +18,7 @@ exclude = '''
 '''
 
 [flake8]
-max-line-length = 110
+max-line-length = 100
 exclude = '''
 /(
     \.git

@@ -10,9 +10,9 @@ from functools import reduce
 import yaml
 from matplotlib import cm
 
-from .exceptions import LIFXDeviceConfigError
-from .packet import LIFXpacket, RESPONSE_TYPES
-from .util import hsbk_human, hsbk_machine, mac_str_to_int, rgba2hsbk
+from lifxdev.exceptions import LIFXDeviceConfigError
+from lifxdev.packet import LIFXpacket, RESPONSE_TYPES
+from lifxdev.util import hsbk_human, hsbk_machine, mac_str_to_int, rgba2hsbk
 
 logger = logging.getLogger(__name__)  # .addHandler(logging.NullHandler())
 logger.setLevel("CRITICAL")
@@ -37,7 +37,14 @@ WAVEFORMS = {
     "pulse": 4,
 }
 
-APPLICATION_REQUEST = {"NO_APPLY": 0, "no_apply": 0, "APPLY": 1, "apply": 1, "APPLY_ONLY": 2, "apply_only": 2}
+APPLICATION_REQUEST = {
+    "NO_APPLY": 0,
+    "no_apply": 0,
+    "APPLY": 1,
+    "apply": 1,
+    "APPLY_ONLY": 2,
+    "apply_only": 2,
+}
 
 
 class LIFXdevice(LIFXpacket):
@@ -221,7 +228,9 @@ class DeviceManager(LIFXdevice):
         Initialize a LIFX device as an untargeted device with a
         broadcast address.
         """
-        super(DeviceManager, self).__init__(0, "255.255.255.255", broadcast=True, do_init_socket=True)
+        super(DeviceManager, self).__init__(
+            0, "255.255.255.255", broadcast=True, do_init_socket=True
+        )
         self.device_type = "manager"
 
         # get the products file from the lifx github
@@ -585,7 +594,9 @@ class LIFXmultizone(_LIFXeffects):
         color_count = multi_state[2]
 
         # convert hsbk
-        hsbk_list = [hsbk_human(multi_state[3 + 4 * i : 3 + 4 * (i + 1)]) for i in range(MAX_ZONES)]  # noqa
+        hsbk_list = [
+            hsbk_human(multi_state[3 + 4 * i : 3 + 4 * (i + 1)]) for i in range(MAX_ZONES)
+        ]  # noqa
 
         self.n_zones = n_zones
         return (n_zones, index, color_count, hsbk_list)
@@ -687,7 +698,8 @@ class LIFXtile(_LIFXeffects):
         # extract the tile messages
         tile_flat = tile_state[1 + start_index : 1 + start_index + total_count * msg_size]  # noqa
         tile_msgs = [
-            self.tile_msg(tile_flat[i * msg_size : (i + 1) * msg_size]) for i in range(total_count)  # noqa
+            self.tile_msg(tile_flat[i * msg_size : (i + 1) * msg_size])
+            for i in range(total_count)  # noqa
         ]
         return tile_msgs
 
@@ -717,7 +729,9 @@ class LIFXtile(_LIFXeffects):
         tile_vals = struct.unpack("<BBBBB" + TILE_SIZE * "HHHH", payload)
 
         tile_index = tile_vals[0]
-        hsbk_list = [hsbk_human(tile_vals[5 + 4 * i : 5 + 4 * (i + 1)]) for i in range(TILE_SIZE)]  # noqa
+        hsbk_list = [
+            hsbk_human(tile_vals[5 + 4 * i : 5 + 4 * (i + 1)]) for i in range(TILE_SIZE)
+        ]  # noqa
         return (tile_index, hsbk_list)
 
     def set_tile_state(self, tile_index, length, duration, hsbk_list):
