@@ -317,7 +317,7 @@ class ProtocolHeader(LifxStruct):
         super().set_value(name, value)
 
 
-class LifxPacket(object):
+class LifxPacket:
     """Generic LIFX packet implementation"""
 
     def __init__(self):
@@ -331,7 +331,8 @@ class LifxPacket(object):
         ack_required: bool = False,
         sequence: int = 0,
         payload: Optional[LifxStruct] = None,
-    ) -> bytes:
+        source: Optional[int] = None,
+    ) -> Tuple[bytes, int]:
         """Generate a LIFX packet.
 
         Args:
@@ -341,8 +342,11 @@ class LifxPacket(object):
             ack_required: (bool) Require an acknowledgement from the light.
             sequence: (int) Optional identifier to label packets.
             payload: (LifxStruct): Optional payload LifxStruct.
+            source: (int) Optional unique identifier to
+
+        Returns:
+            bytes and source identifier
         """
-        # frame = Frame(tagged=True, size=49)
         frame = Frame()
         frame_address = FrameAddress()
         protocol_header = ProtocolHeader()
@@ -358,14 +362,14 @@ class LifxPacket(object):
 
         # Generate the frame
         frame["tagged"] = bool(mac_addr)
-        frame["source"] = os.getpid()
+        frame["source"] = os.getpid() if source is None else source
         frame["size"] = len(frame) + len(frame_address) + len(protocol_header)
         if payload:
-            frame["size"] += len(payload)
+            frame["size"][0] += len(payload)
 
         # Generate the bytes for the packet
         packet_bytes = frame.to_bytes() + frame_address.to_bytes() + protocol_header.to_bytes()
-        if payload():
+        if payload:
             packet_bytes += payload.to_bytes()
 
-        return packet_bytes
+        return packet_bytes, frame["source"][0]
