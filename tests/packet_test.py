@@ -16,18 +16,35 @@ class PacketTest(unittest.TestCase):
         frame["tagged"] = True
         frame["size"] = 49
 
-        self.assertEqual(frame.to_bytes(), lifx_ref)
+        frame_bytes = frame.to_bytes()
+        self.assertEqual(frame_bytes, lifx_ref)
         self.assertEqual(len(frame), frame.len())
         self.assertEqual(len(frame), 8)
-        self.assertEqual(len(frame.to_bytes()), len(frame))
+        self.assertEqual(len(frame_bytes), len(frame))
+
+        frame_from_bytes = packet.Frame.from_bytes(frame_bytes)
+        self.assertEqual(frame_from_bytes["size"], frame["size"])
+        self.assertEqual(frame_from_bytes["tagged"], frame["tagged"])
 
     def test_frame_address(self):
         """Green light example doesn't have anything here. Just measure the size."""
         frame_address = packet.FrameAddress()
-        frame_address["target"] = "00:00:00:00:00:00"
+        frame_address["target"] = "01:23:45:67:89:ab"
+        frame_address["ack_required"] = True
+        frame_address["res_required"] = True
+        frame_address["sequence"] = 127
+        frame_address_bytes = frame_address.to_bytes()
         self.assertEqual(len(frame_address), frame_address.len())
         self.assertEqual(len(frame_address), 16)
-        self.assertEqual(len(frame_address.to_bytes()), len(frame_address))
+        self.assertEqual(len(frame_address_bytes), len(frame_address))
+
+        fa_from_bytes = packet.FrameAddress.from_bytes(frame_address_bytes)
+        self.assertEqual(fa_from_bytes["target"], frame_address["target"])
+        self.assertTrue(fa_from_bytes["res_required"][0])
+        self.assertTrue(fa_from_bytes["ack_required"][0])
+        self.assertEqual(fa_from_bytes["res_required"], frame_address["res_required"])
+        self.assertEqual(fa_from_bytes["ack_required"], frame_address["ack_required"])
+        self.assertEqual(fa_from_bytes["sequence"], frame_address["sequence"])
 
     def test_protocol_header(self):
         """Generate a protocol header based on the LIFX green light example."""
@@ -36,10 +53,17 @@ class PacketTest(unittest.TestCase):
         protocol_header = packet.ProtocolHeader()
         protocol_header["type"] = packet.MessageType.SetColor
 
-        self.assertEqual(protocol_header.to_bytes(), lifx_ref)
+        # Encode the message.
+        message_bytes = protocol_header.to_bytes()
+        self.assertEqual(message_bytes, lifx_ref)
         self.assertEqual(len(protocol_header), protocol_header.len())
         self.assertEqual(len(protocol_header), 12)
-        self.assertEqual(len(protocol_header.to_bytes()), len(protocol_header))
+        self.assertEqual(len(message_bytes), len(protocol_header))
+
+        # Decode from bytes
+        ph_from_bytes = packet.ProtocolHeader.from_bytes(message_bytes)
+        self.assertEqual(len(ph_from_bytes["type"]), 1)
+        self.assertEqual(ph_from_bytes["type"][0], packet.MessageType.SetColor.value)
 
     def test_packet(self):
         lifx_packet = packet.LifxPacket()

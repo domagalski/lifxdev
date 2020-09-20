@@ -3,9 +3,8 @@
 import collections
 import enum
 import os
-from typing import List, Optional, Tuple, Type, Union
-
-import numpy as np
+import struct
+from typing import List, Optional, Tuple, Union
 
 from lifxdev import util
 
@@ -49,44 +48,24 @@ class MessageType(enum.Enum):
     SetTileState64 = 715
 
 
-class ResponseType(enum.Enum):
-    StateService = 3
-    StateHostInfo = 13
-    StateHostFirmware = 15
-    StateWifiInfo = 17
-    StateWifiFirmware = 19
-    StatePowerDevice = 22
-    StateLabel = 25
-    StateVersion = 33
-    StateInfo = 33
-    StateLocation = 50
-    StateGroup = 53
-    State = 107
-    StatePowerLight = 118
-    StateExtendedColorZones = 512
-    StateDeviceChain = 702
-    StateTileState64 = 711
-
-
 class LifxType(enum.Enum):
     """Type definition:
 
-    0: (bool) signed
-    1: (int) size in bits
-    2: (type) python type
+    0: (int) size in bits
+    1: (char) struct format (None if size % 8 > 0)
     """
 
-    bool = (False, 1, bool)
-    char = (False, 8, ord)
-    f32 = (True, 32, float)
-    s16 = (True, 16, int)
-    u2 = (False, 2, int)  # 8 bit int where only 2 bits are used
-    u6 = (False, 6, int)  # 8 bit int where only 6 bits are used
-    u8 = (False, 8, int)
-    u12 = (False, 12, int)  # 16 bit int where only 12 bits are used
-    u16 = (False, 16, int)
-    u32 = (False, 32, int)
-    u64 = (False, 64, int)
+    bool = (1, None)
+    char = (8, "c")
+    f32 = (32, "f")
+    s16 = (16, "h")
+    u2 = (2, None)  # 8 bit int where only 2 bits are used
+    u6 = (6, None)  # 8 bit int where only 6 bits are used
+    u8 = (8, "B")
+    u12 = (12, None)  # 16 bit int where only 12 bits are used
+    u16 = (16, "H")
+    u32 = (32, "I")
+    u64 = (64, "Q")
 
 
 class LifxStruct:
@@ -100,7 +79,7 @@ class LifxStruct:
         2: (int) number of items of the type
     """
 
-    registers: List[Tuple[str, Optional[int], Union[str, Type]]] = []
+    registers: List[Tuple[str, Union[LifxType, "LifxStruct"], int]] = []
 
     def __init__(self, **kwargs):
         # Set to tuples because they're immutable. _names and _sizes should not be changed.
@@ -112,7 +91,7 @@ class LifxStruct:
         self._values = collections.OrderedDict()
         for name, rr in zip(self._names, self.registers):
             self._types[name] = rr[1]
-            self._sizes[name] = rr[1].value[1] * rr[2]
+            self._sizes[name] = rr[1].value[0] * rr[2]
             self._lens[name] = rr[2]
             if isinstance(self._types[name], LifxType):
                 default = [0] * self._lens[name]
@@ -120,6 +99,41 @@ class LifxStruct:
                 default = [self._types[name]] * self._lens[name]
             self._values[name] = default
             self.set_value(name, kwargs.get(name, default))
+
+    @classmethod
+    def from_bytes(cls, message_bytes: bytes) -> "LifxStruct":
+        """Create a LifxStruct from bytes
+
+        Anything with irregular bits will have this class overrwitten.
+        """
+        decoded_registers = collections.defaultdict(list)
+
+        offset = 0
+        for reg_info in cls.registers:
+            t_nbytes = 0
+            rname, rtype, rlen = reg_info
+
+            # Easy decoding using struct.unpack for LifxType data
+            if isinstance(rtype, LifxType):
+                if rtype.value[1] is None:
+                    raise RuntimeError(f"Register {rname} cannot be represented as bytes.")
+
+                t_nbytes = rtype.value[0] // 8 * rlen
+                msg_chunk = message_bytes[offset : offset + t_nbytes]
+                value_list = list(struct.unpack("<" + rtype.value[1] * rlen, msg_chunk))
+                decoded_registers[rname] = value_list
+
+            # If bytes are supposed to represent a type, use the from_bytes from that type
+            else:
+                t_nbytes = len(rtype) * rlen
+                msg_chunk = message_bytes[offset : offset + t_nbytes]
+                for _ in range(rlen):
+                    decoded_registers[rname].append(rtype.from_bytes(msg_chunk[: len(rtype)]))
+                    msg_chunk = msg_chunk[len(rtype) :]
+
+            offset += t_nbytes
+
+        return cls(**decoded_registers)
 
     def get_size_bits(self) -> int:
         """Get the size in bits of an individual LifxStruct object"""
@@ -133,10 +147,21 @@ class LifxStruct:
         name = name.lower()
         return self._lens[name]
 
+    def get_nbits_per_name(self, name: str) -> int:
+        name = name.lower()
+        return self._sizes[name]
+
+    def get_nbytes_per_name(self, name: str) -> int:
+        return self.get_nbits_per_name(name) // 8
+
+    def get_type(self, name: str) -> Union[LifxType, "LifxStruct"]:
+        name = name.lower()
+        return self._types[name]
+
     @property
-    def value(self) -> Tuple[bool, int, None]:
+    def value(self) -> Tuple[int, None]:
         """Mimic the value attribute of the LifxType enum"""
-        return (False, self.get_size_bits(), None)
+        return (self.get_size_bits(), None)
 
     def __len__(self) -> int:
         return self.len()
@@ -205,7 +230,7 @@ class LifxStruct:
             raise ValueError(f"value {value} out of bounds for register {name!r}")
         return value
 
-    def to_bytes(self, *, as_ints: bool = False) -> Union[bytes, List[int]]:
+    def to_bytes(self) -> bytes:
         """Convert the LifxStruct to its bytes representation
 
         Args:
@@ -216,35 +241,23 @@ class LifxStruct:
         assert len(self._sizes) == len(self._values)
         assert len(self._lens) == len(self._values)
 
-        # Bit offsets are used for setting bits in the numerical representation.
-        # Numpy does some funky stuff with types, so numbers needed to be converted
-        # back to native Python integers
-        sizes = list(self._sizes.values())
-        offsets = [int(n) for n in np.r_[0, np.cumsum(sizes)[:-1]]]
-        number = 0
-        for name, size in zip(self._values, offsets):
-            n_bits = self._types[name].value[1]
-            value_list = self._values[name]
-            if issubclass(type(self._types[name]), LifxStruct):
-                for ii, value in enumerate(value_list):
-                    for jj, nn in enumerate(value.to_bytes(as_ints=True)):
-                        offset = size + ii * n_bits + jj * 8
-                        number |= nn << offset
+        message_bytes = b""
+        for reg_info in self.registers:
+            rname, rtype, rlen = reg_info
+
+            # Use struct.path for LifxTypes
+            if isinstance(rtype, LifxType):
+                if rtype.value[1] is None:
+                    raise RuntimeError(f"Register {rname} cannot be represented as bytes.")
+                fmt = "<" + rtype.value[1] * rlen
+                message_bytes += struct.pack(fmt, *self._values[rname])
+
+            # Use the LifxStruct to_bytes when not a LifxType
             else:
-                for ii, value in enumerate(value_list):
-                    offset = size + ii * n_bits
-                    number |= value << offset
+                for lstruct in self._values[rname]:
+                    message_bytes += lstruct.to_bytes()
 
-        # Get each byte from the integer representation
-        bytes_list: List[int] = []
-        for _ in range(len(self)):
-            bytes_list.append(number % (1 << 8))
-            number = number >> 8
-
-        if as_ints:
-            return bytes_list
-        else:
-            return bytes(bytes_list)
+        return message_bytes
 
 
 # Header description: https://lan.developer.lifx.com/docs/header-description
@@ -269,6 +282,42 @@ class Frame(LifxStruct):
         elif name.lower() == "origin":
             value = 0
         super().set_value(name, value)
+
+    def to_bytes(self) -> bytes:
+        """Override defaults because of sub-byte packing"""
+        size = self["size"][0]
+        source = self["source"][0]
+
+        bit_field = self.get_value("protocol")[0]
+        offset = self.get_nbits_per_name("protocol")
+        bit_field |= self.get_value("addressable")[0] << offset
+        offset += self.get_nbits_per_name("addressable")
+        bit_field |= self.get_value("tagged")[0] << offset
+        offset += self.get_nbits_per_name("tagged")
+        bit_field |= self.get_value("origin")[0] << offset
+
+        return struct.pack("<HHI", size, bit_field, source)
+
+    @classmethod
+    def from_bytes(cls, message_bytes: bytes) -> "Frame":
+        """Override defaults because of sub-byte packing"""
+        size, bit_field, source = struct.unpack("<HHI", message_bytes)
+        frame = cls(size=size, source=source)
+
+        shift = frame.get_nbits_per_name("protocol")
+        frame["protocol"] = bit_field % (1 << shift)
+        bit_field = bit_field >> shift
+
+        shift = frame.get_nbits_per_name("addressable")
+        frame["addressable"] = bool(bit_field % (1 << shift))
+        bit_field = bit_field >> shift
+
+        shift = frame.get_nbits_per_name("tagged")
+        frame["tagged"] = bool(bit_field % (1 << shift))
+        bit_field = bit_field >> shift
+
+        frame["origin"] = bit_field
+        return frame
 
 
 class FrameAddress(LifxStruct):
@@ -295,6 +344,52 @@ class FrameAddress(LifxStruct):
                     value = util.mac_str_to_int_list(value)
 
         super().set_value(name, value)
+
+    def _fmt(self, name: str) -> str:
+        """Create a format string for a register name"""
+        return "<" + self.get_type(name).value[1] * self.get_array_size(name)
+
+    def to_bytes(self) -> bytes:
+        """Override defaults because of sub-byte packing"""
+
+        target_bytes = struct.pack(self._fmt("target"), *self.get_value("target"))
+        res_1_bytes = struct.pack(self._fmt("reserved_1"), *self.get_value("reserved_1"))
+        sequence_bytes = struct.pack(self._fmt("sequence"), *self.get_value("sequence"))
+
+        bit_field = int(self.get_value("res_required")[0])
+        offset = self.get_nbits_per_name("res_required")
+        bit_field |= int(self.get_value("ack_required")[0]) << offset
+        bit_field_bytes = struct.pack("<B", bit_field)
+
+        return target_bytes + res_1_bytes + bit_field_bytes + sequence_bytes
+
+    @classmethod
+    def from_bytes(cls, message_bytes: bytes) -> "Frame":
+        """Override defaults because of sub-byte packing"""
+        frame_address = cls()
+        get_len = frame_address.get_nbytes_per_name
+        get_nbits = frame_address.get_nbits_per_name
+
+        chunk_len = get_len("target")
+        target_bytes = message_bytes[:chunk_len]
+        offset = chunk_len + get_len("reserved_1")
+        chunk_len = get_nbits("res_required") + get_nbits("ack_required") + get_nbits("reserved_2")
+        chunk_len //= 8
+        bit_field_bytes = message_bytes[offset : offset + chunk_len]
+        offset += chunk_len
+
+        chunk_len = get_len("sequence")
+        sequence_bytes = message_bytes[offset : offset + chunk_len]
+
+        frame_address["target"] = list(struct.unpack(frame_address._fmt("target"), target_bytes))
+        frame_address["sequence"] = list(
+            struct.unpack(frame_address._fmt("sequence"), sequence_bytes)
+        )
+        bit_field, = struct.unpack("<B", bit_field_bytes)
+        frame_address["res_required"] = bool(bit_field % 2)
+        frame_address["ack_required"] = bool(bit_field // 2)
+
+        return frame_address
 
 
 class ProtocolHeader(LifxStruct):
