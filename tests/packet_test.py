@@ -3,11 +3,28 @@
 import logging
 import unittest
 
-from lifxdev import packet
-from lifxdev import payload
+from lifxdev.payload import packet
+from lifxdev.payload import light_messages
 
 
 class PacketTest(unittest.TestCase):
+    def test_hsbk(self):
+        hsbk = packet.Hsbk()
+        hsbk["hue"] = 0
+        hsbk["saturation"] = 65535
+        hsbk["brightness"] = 65535
+        hsbk["kelvin"] = 5500
+
+        hsbk_bytes = hsbk.to_bytes()
+        bytes_ints = [int(b) for b in hsbk_bytes]
+        self.assertEqual(bytes_ints, [0, 0, 255, 255, 255, 255, 124, 21])
+
+        hsbk_from_bytes = packet.Hsbk.from_bytes(hsbk_bytes)
+        self.assertEqual(hsbk_from_bytes["hue"], hsbk["hue"])
+        self.assertEqual(hsbk_from_bytes["saturation"], hsbk["saturation"])
+        self.assertEqual(hsbk_from_bytes["brightness"], hsbk["brightness"])
+        self.assertEqual(hsbk_from_bytes["kelvin"], hsbk["kelvin"])
+
     def test_frame(self):
         """Generate a frame based on the LIFX green light example"""
         lifx_ref = bytes([0x31, 0x0, 0x0, 0x34, 0x0, 0x0, 0x0, 0x0])
@@ -66,17 +83,16 @@ class PacketTest(unittest.TestCase):
         self.assertEqual(ph_from_bytes["type"][0], packet.MessageType.SetColor.value)
 
     def test_packet(self):
-        lifx_packet = packet.LifxPacket()
-        hsbk = payload.Hsbk(hue=21845, saturation=65535, brightness=65535, kelvin=3500)
-        green = payload.SetColor(color=hsbk, duration=1024)
+        lifx_packet = packet.PacketComm()
+        hsbk = packet.Hsbk(hue=21845, saturation=65535, brightness=65535, kelvin=3500)
+        green = light_messages.SetColor(color=hsbk, duration=1024)
 
-        payload_bytes, _ = lifx_packet.generate_packet(
-            message_type=packet.MessageType.SetColor,
+        payload_bytes, _ = lifx_packet.get_bytes_and_source(
+            payload=green,
             mac_addr="00:00:00:00:00:00",
             res_required=False,
             ack_required=False,
             sequence=0,
-            payload=green,
             source=0,
         )
 

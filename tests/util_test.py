@@ -3,7 +3,7 @@
 import unittest
 from typing import Tuple, List, Union, Callable
 
-from lifxdev import util
+from lifxdev.util import util
 
 KELVIN = 5500
 

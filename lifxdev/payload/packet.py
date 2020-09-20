@@ -4,9 +4,9 @@ import collections
 import enum
 import os
 import struct
-from typing import List, Optional, Tuple, Union
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Type, Union
 
-from lifxdev import util
+from lifxdev.util import util
 
 REGISTER_T = List[Tuple[str, Optional[int], str]]
 
@@ -412,26 +412,98 @@ class ProtocolHeader(LifxStruct):
         super().set_value(name, value)
 
 
-class LifxPacket:
-    """Generic LIFX packet implementation"""
+class Hsbk(LifxStruct):
+    registers: REGISTER_T = [
+        ("hue", LifxType.u16, 1),
+        ("saturation", LifxType.u16, 1),
+        ("brightness", LifxType.u16, 1),
+        ("kelvin", LifxType.u16, 1),
+    ]
+
+    def set_value(self, name: str, value: Union[int, List[int]]):
+        """Kelvin must be between 2500 and 9000."""
+        if isinstance(value, list):
+            if len(value) > 1:
+                raise ValueError("HSBK value as list must be length 1")
+            hsbk_value = value[0]
+        else:
+            hsbk_value = value
+
+        # Only value check when setting a non-zero value.
+        # Value checking on the zero would break the default constructor.
+        if name.lower() == "kelvin" and hsbk_value:
+            if hsbk_value < 2500 or hsbk_value > 9000:
+                raise ValueError("Kelvin out of range.")
+
+        super().set_value(name, hsbk_value)
+
+
+#
+# Handle payload messages and responses
+#
+
+
+class LifxMessage(LifxStruct):
+    """LIFX struct that's meant as a payload."""
+
+    # integer identifier of for the protocol header of LIFX packets.
+    message_type: Optional[int] = None
+
+
+class LifxResponse(NamedTuple):
+    frame: Frame
+    frame_address: FrameAddress
+    protocol_header: ProtocolHeader
+    payload: LifxMessage
+
+
+_RESPONSE_CLASSES: Dict[int, Type] = {}
+
+
+def set_message_type(message_type: int, *, is_response: bool = False):
+    """Create a LifxMessage class with the message type auto-set.
+
+    Args:
+        message_type: (int) LIFX message type for the protocol header
+        is_response: (int) Indicate that the message is a response type.
+    """
+
+    def _msg_type_decorator(cls: Type) -> Callable:
+        class _LifxMessage(cls):
+            pass
+
+        _LifxMessage.message_type = message_type
+        if is_response:
+            _RESPONSE_CLASSES[message_type] = _LifxMessage
+
+        return _LifxMessage
+
+    return _msg_type_decorator
+
+
+#
+# Socket communication
+#
+
+
+class PacketComm:
+    """Communicate packets with LIFX devices"""
 
     def __init__(self):
         pass
 
-    def generate_packet(
+    def get_bytes_and_source(
         self,
-        message_type: Union[str, MessageType],
+        payload: LifxMessage,
         mac_addr: Optional[Union[str, int]] = None,
         res_required: bool = False,
         ack_required: bool = False,
         sequence: int = 0,
-        payload: Optional[LifxStruct] = None,
         source: Optional[int] = None,
     ) -> Tuple[bytes, int]:
-        """Generate a LIFX packet.
+        """Generate LIFX packet bytes.
 
         Args:
-            msg_type: (MessageType) Type of the message from MESSAGE_TYPES
             mac_addr: (str) MAC address of the target bulb.
             res_required: (bool) Require a response from the light.
             ack_required: (bool) Require an acknowledgement from the light.
@@ -453,18 +525,19 @@ class LifxPacket:
         frame_address["sequence"] = sequence
 
         # Protocol header only requires setting the type.
-        protocol_header["type"] = message_type
+        if not payload.message_type:
+            raise ValueError("Payload has no message type.")
+        protocol_header["type"] = payload.message_type
 
         # Generate the frame
         frame["tagged"] = bool(mac_addr)
         frame["source"] = os.getpid() if source is None else source
-        frame["size"] = len(frame) + len(frame_address) + len(protocol_header)
-        if payload:
-            frame["size"][0] += len(payload)
+        frame["size"] = len(frame) + len(frame_address) + len(protocol_header) + len(payload)
 
         # Generate the bytes for the packet
-        packet_bytes = frame.to_bytes() + frame_address.to_bytes() + protocol_header.to_bytes()
-        if payload:
-            packet_bytes += payload.to_bytes()
+        packet_bytes = frame.to_bytes()
+        packet_bytes += frame_address.to_bytes()
+        packet_bytes += protocol_header.to_bytes()
+        packet_bytes += payload.to_bytes()
 
         return packet_bytes, frame["source"][0]

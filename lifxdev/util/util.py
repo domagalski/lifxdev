@@ -2,10 +2,10 @@
 
 import re
 import struct
-from typing import List
+from typing import List, Tuple, Union
 
 
-def hsbk_human(hsbk: (tuple, list)):
+def hsbk_human(hsbk: Union[Tuple, List]) -> Tuple:
     """Make hsbk human readable"""
     if not isinstance(hsbk, (tuple, list)):
         raise ValueError("hsbk must be a len 4 tuple/list")
@@ -20,7 +20,7 @@ def hsbk_human(hsbk: (tuple, list)):
     return (hue, sat, brightness, kelvin)
 
 
-def hsbk_machine(hsbk: (tuple, list)):
+def hsbk_machine(hsbk: Union[Tuple, List]) -> Tuple:
     """Make hsbk machine readable"""
     if not isinstance(hsbk, (tuple, list)):
         raise ValueError("hsbk must be a len 4 tuple/list")
@@ -36,7 +36,7 @@ def hsbk_machine(hsbk: (tuple, list)):
     return (hue, sat, brightness, kelvin)
 
 
-def is_str_ipaddr(ipaddr: str):
+def is_str_ipaddr(ipaddr: str) -> bool:
     if re.match(r"(\d+)\.(\d+)\.(\d+)\.(\d+)", ipaddr) is None:
         return False
 
@@ -49,7 +49,7 @@ def is_str_ipaddr(ipaddr: str):
     return all(nums_valid)
 
 
-def is_str_mac(mac: str):
+def is_str_mac(mac: str) -> bool:
     if re.match(r"(\S\S):" * 5 + r"(\S\S)", mac) is None:
         return False
 
