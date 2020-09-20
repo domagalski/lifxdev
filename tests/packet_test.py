@@ -68,7 +68,7 @@ class PacketTest(unittest.TestCase):
         lifx_ref = bytes([0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x66, 0x0, 0x0, 0x0])
 
         protocol_header = packet.ProtocolHeader()
-        protocol_header["type"] = packet.MessageType.SetColor
+        protocol_header["type"] = light_messages.SetColor.message_type
 
         # Encode the message.
         message_bytes = protocol_header.to_bytes()
@@ -80,7 +80,7 @@ class PacketTest(unittest.TestCase):
         # Decode from bytes
         ph_from_bytes = packet.ProtocolHeader.from_bytes(message_bytes)
         self.assertEqual(len(ph_from_bytes["type"]), 1)
-        self.assertEqual(ph_from_bytes["type"][0], packet.MessageType.SetColor.value)
+        self.assertEqual(ph_from_bytes["type"][0], light_messages.SetColor.message_type)
 
     def test_packet(self):
         lifx_packet = packet.PacketComm()

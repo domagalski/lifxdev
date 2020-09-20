@@ -11,43 +11,6 @@ from lifxdev.util import util
 REGISTER_T = List[Tuple[str, Optional[int], str]]
 
 
-class MessageType(enum.Enum):
-    # Device messages
-    GetService = 2
-    GetHostInfo = 12
-    GetHostFirmware = 14
-    GetWifiInfo = 16
-    GetWifiFirmware = 18
-    GetPowerDevice = 20
-    SetPowerDevice = 21
-    GetLabel = 23
-    SetLabel = 24
-    GetVersion = 32
-    GetInfo = 32
-    Acknowledgement = 45
-    GetLocation = 48
-    SetLocation = 49
-    GetGroup = 51
-    SetGroup = 52
-    EchoRequest = 58
-    EchoResponse = 59
-    # Light messages
-    Get = 101
-    SetColor = 102
-    SetWaveform = 103
-    SetWaveformOptional = 119
-    GetPowerLight = 116
-    SetPowerLight = 117
-    # MultiZone (Z/Beam) messages
-    SetExtendedColorZones = 510
-    GetExtendedColorZones = 511
-    # Tile messages
-    GetDeviceChain = 701
-    SetUserPosition = 703
-    GetTileState64 = 707
-    SetTileState64 = 715
-
-
 class LifxType(enum.Enum):
     """Type definition:
 
@@ -403,11 +366,6 @@ class ProtocolHeader(LifxStruct):
         """LIFX Protocol Address specification requires certain fields to be constant."""
         if "reserved" in name.lower():
             value = 0
-        if name.lower() == "type":
-            if isinstance(value, MessageType):
-                value = value.value
-            elif isinstance(value, str):
-                value = MessageType[value].value
 
         super().set_value(name, value)
 
@@ -444,7 +402,7 @@ class Hsbk(LifxStruct):
 
 
 class LifxMessage(LifxStruct):
-    """LIFX struct that's meant as a payload."""
+    """LIFX struct used as a message type payload."""
 
     # integer identifier of for the protocol header of LIFX packets.
     message_type: Optional[int] = None
