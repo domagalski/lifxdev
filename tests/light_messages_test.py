@@ -54,11 +54,11 @@ class LightMessageTest(unittest.TestCase):
         self.assertEqual(color_int, nominal_payload)
 
         color_from_bytes = light_messages.SetColor.from_bytes(color_bytes)
-        self.assertEqual(color_from_bytes["color"][0]["hue"][0], hsbk["hue"][0])
-        self.assertEqual(color_from_bytes["color"][0]["saturation"][0], hsbk["saturation"][0])
-        self.assertEqual(color_from_bytes["color"][0]["brightness"][0], hsbk["brightness"][0])
-        self.assertEqual(color_from_bytes["color"][0]["kelvin"][0], hsbk["kelvin"][0])
-        self.assertEqual(color_from_bytes["duration"][0], color["duration"][0])
+        self.assertEqual(color_from_bytes["color"]["hue"], hsbk["hue"])
+        self.assertEqual(color_from_bytes["color"]["saturation"], hsbk["saturation"])
+        self.assertEqual(color_from_bytes["color"]["brightness"], hsbk["brightness"])
+        self.assertEqual(color_from_bytes["color"]["kelvin"], hsbk["kelvin"])
+        self.assertEqual(color_from_bytes["duration"], color["duration"])
         self.assertEqual(color_from_bytes.message_type, color.message_type)
 
 

@@ -136,9 +136,20 @@ class LifxStruct:
     def __getitem__(self, name: str) -> int:
         return self.get_value(name)
 
-    def get_value(self, name: str) -> int:
-        """Get a register value by name."""
-        return self._values.get(name.lower(), 0)
+    def get_value(self, name: str) -> Union[int, List[int]]:
+        """Get a register value by name.
+
+        Returns:
+            A single value if the register length is 1 else return the array of values.
+        """
+        name = name.lower()
+        if name not in self._names:
+            raise KeyError(f"{name!r} not a valid register name")
+
+        value = self._values[name]
+        if len(value) == 1:
+            value = value[0]
+        return value
 
     def __setitem__(self, name: str, value: int) -> None:
         self.set_value(name, value)
@@ -248,16 +259,16 @@ class Frame(LifxStruct):
 
     def to_bytes(self) -> bytes:
         """Override defaults because of sub-byte packing"""
-        size = self["size"][0]
-        source = self["source"][0]
+        size = self.get_value("size")
+        source = self.get_value("source")
 
-        bit_field = self.get_value("protocol")[0]
+        bit_field = self.get_value("protocol")
         offset = self.get_nbits_per_name("protocol")
-        bit_field |= self.get_value("addressable")[0] << offset
+        bit_field |= self.get_value("addressable") << offset
         offset += self.get_nbits_per_name("addressable")
-        bit_field |= self.get_value("tagged")[0] << offset
+        bit_field |= self.get_value("tagged") << offset
         offset += self.get_nbits_per_name("tagged")
-        bit_field |= self.get_value("origin")[0] << offset
+        bit_field |= self.get_value("origin") << offset
 
         return struct.pack("<HHI", size, bit_field, source)
 
@@ -317,11 +328,11 @@ class FrameAddress(LifxStruct):
 
         target_bytes = struct.pack(self._fmt("target"), *self.get_value("target"))
         res_1_bytes = struct.pack(self._fmt("reserved_1"), *self.get_value("reserved_1"))
-        sequence_bytes = struct.pack(self._fmt("sequence"), *self.get_value("sequence"))
+        sequence_bytes = struct.pack(self._fmt("sequence"), self.get_value("sequence"))
 
-        bit_field = int(self.get_value("res_required")[0])
+        bit_field = int(self.get_value("res_required"))
         offset = self.get_nbits_per_name("res_required")
-        bit_field |= int(self.get_value("ack_required")[0]) << offset
+        bit_field |= int(self.get_value("ack_required")) << offset
         bit_field_bytes = struct.pack("<B", bit_field)
 
         return target_bytes + res_1_bytes + bit_field_bytes + sequence_bytes
@@ -348,7 +359,7 @@ class FrameAddress(LifxStruct):
         frame_address["sequence"] = list(
             struct.unpack(frame_address._fmt("sequence"), sequence_bytes)
         )
-        bit_field, = struct.unpack("<B", bit_field_bytes)
+        (bit_field,) = struct.unpack("<B", bit_field_bytes)
         frame_address["res_required"] = bool(bit_field % 2)
         frame_address["ack_required"] = bool(bit_field // 2)
 
@@ -498,4 +509,4 @@ class PacketComm:
         packet_bytes += protocol_header.to_bytes()
         packet_bytes += payload.to_bytes()
 
-        return packet_bytes, frame["source"][0]
+        return packet_bytes, frame["source"]

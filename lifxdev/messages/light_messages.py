@@ -74,6 +74,11 @@ class SetPower(packet.LifxMessage):
 class StatePower(packet.LifxMessage):
     registers: packet.REGISTER_T = [("level", packet.LifxType.u16, 1)]
 
+    def get_value(self, name: str) -> bool:
+        """Get a register value by name."""
+        value = super().get_value(name)
+        return value > 0
+
 
 @packet.set_message_type(120)
 class GetInfrared(packet.LifxMessage):

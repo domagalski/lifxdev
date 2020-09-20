@@ -57,8 +57,8 @@ class PacketTest(unittest.TestCase):
 
         fa_from_bytes = packet.FrameAddress.from_bytes(frame_address_bytes)
         self.assertEqual(fa_from_bytes["target"], frame_address["target"])
-        self.assertTrue(fa_from_bytes["res_required"][0])
-        self.assertTrue(fa_from_bytes["ack_required"][0])
+        self.assertTrue(fa_from_bytes["res_required"])
+        self.assertTrue(fa_from_bytes["ack_required"])
         self.assertEqual(fa_from_bytes["res_required"], frame_address["res_required"])
         self.assertEqual(fa_from_bytes["ack_required"], frame_address["ack_required"])
         self.assertEqual(fa_from_bytes["sequence"], frame_address["sequence"])
@@ -79,8 +79,7 @@ class PacketTest(unittest.TestCase):
 
         # Decode from bytes
         ph_from_bytes = packet.ProtocolHeader.from_bytes(message_bytes)
-        self.assertEqual(len(ph_from_bytes["type"]), 1)
-        self.assertEqual(ph_from_bytes["type"][0], light_messages.SetColor.message_type)
+        self.assertEqual(ph_from_bytes["type"], light_messages.SetColor.message_type)
 
     def test_packet(self):
         lifx_packet = packet.PacketComm()
