@@ -63,6 +63,14 @@ class LifxStruct:
             self._values[name] = default
             self.set_value(name, kwargs.get(name, default))
 
+    def __str__(self) -> str:
+        segments = [f"{nn}={self.get_value(nn)}" for nn in self._names]
+        join = "\n".join(segments)
+        return f"{join}"
+
+    def __repr__(self) -> str:
+        return f"<{id(self)}>{self.__str__()}"
+
     @classmethod
     def from_bytes(cls, message_bytes: bytes) -> "LifxStruct":
         """Create a LifxStruct from bytes
@@ -133,7 +141,7 @@ class LifxStruct:
         """Return the number of bytes in the LifxStruct"""
         return self.get_size_bytes()
 
-    def __getitem__(self, name: str) -> int:
+    def __getitem__(self, name: str) -> Union[int, List[int]]:
         return self.get_value(name)
 
     def get_value(self, name: str) -> Union[int, List[int]]:
@@ -170,6 +178,11 @@ class LifxStruct:
         name = name.lower()
         if name not in self._names:
             raise KeyError(f"{name!r} not a valid register name")
+
+        # Force reserved registers to be null
+        if "reserved" in name:
+            value = [0] * self.get_array_size(name)
+            idx = None
 
         # Validate that if a list was passed, that it matches the register length
         n_items = self._lens[name]
@@ -310,9 +323,7 @@ class FrameAddress(LifxStruct):
         This also allows for the proper parsing of mac addresses.
         """
         name = name.lower()
-        if "reserved" in name:
-            value = [0] * self.get_array_size(name)
-        elif name == "target":
+        if name == "target":
             if isinstance(value, str):
                 if util.is_str_mac(value):
                     value = util.mac_str_to_int_list(value)
@@ -373,13 +384,6 @@ class ProtocolHeader(LifxStruct):
         ("reserved_2", LifxType.u16, 1),
     ]
 
-    def set_value(self, name: str, value: int):
-        """LIFX Protocol Address specification requires certain fields to be constant."""
-        if "reserved" in name.lower():
-            value = 0
-
-        super().set_value(name, value)
-
 
 class Hsbk(LifxStruct):
     registers: REGISTER_T = [
@@ -416,7 +420,14 @@ class LifxMessage(LifxStruct):
     """LIFX struct used as a message type payload."""
 
     # integer identifier of for the protocol header of LIFX packets.
-    message_type: Optional[int] = None
+    name: Optional[str] = None
+    type: Optional[int] = None
+
+    def __repr__(self) -> str:
+        return f"<{self.name}({self.type}): {id(self)}>\n{super().__str__()}"
+
+    def __str__(self) -> str:
+        return f"<{self.name}({self.type})>\n{super().__str__()}"
 
 
 class LifxResponse(NamedTuple):
@@ -431,19 +442,19 @@ class LifxResponse(NamedTuple):
 _MESSAGE_TYPES: Dict[int, Type] = {}
 
 
-def set_message_type(message_type: int):
+def set_message_type(message_type: int) -> Callable:
     """Create a LifxMessage class with the message type auto-set.
 
     Args:
         message_type: (int) LIFX message type for the protocol header
-        is_response: (int) Indicate that the message is a response type.
     """
 
-    def _msg_type_decorator(cls: Type) -> Callable:
+    def _msg_type_decorator(cls: Type) -> Type:
         class _LifxMessage(cls):
             pass
 
-        _LifxMessage.message_type = message_type
+        _LifxMessage.name = cls.__name__
+        _LifxMessage.type = message_type
         _MESSAGE_TYPES[message_type] = _LifxMessage
         return _LifxMessage
 
@@ -494,13 +505,13 @@ class PacketComm:
         frame_address["sequence"] = sequence
 
         # Protocol header only requires setting the type.
-        if not payload.message_type:
+        if not payload.type:
             raise ValueError("Payload has no message type.")
-        protocol_header["type"] = payload.message_type
+        protocol_header["type"] = payload.type
 
         # Generate the frame
         # tagged must be true when sending a GetService message
-        frame["tagged"] = bool(mac_addr) or payload.message_type == 2
+        frame["tagged"] = bool(mac_addr) or payload.type == 2
         frame["source"] = os.getpid() if source is None else source
         frame["size"] = len(frame) + len(frame_address) + len(protocol_header) + len(payload)
 

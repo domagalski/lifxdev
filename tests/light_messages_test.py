@@ -59,7 +59,7 @@ class LightMessageTest(unittest.TestCase):
         self.assertEqual(color_from_bytes["color"]["brightness"], hsbk["brightness"])
         self.assertEqual(color_from_bytes["color"]["kelvin"], hsbk["kelvin"])
         self.assertEqual(color_from_bytes["duration"], color["duration"])
-        self.assertEqual(color_from_bytes.message_type, color.message_type)
+        self.assertEqual(color_from_bytes.type, color.type)
 
 
 if __name__ == "__main__":
