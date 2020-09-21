@@ -1,9 +1,4 @@
-black
-flake8
-pre-commit
-coverage
-pytest
-
+coloredlogs
 numpy
 PyYAML
 matplotlib

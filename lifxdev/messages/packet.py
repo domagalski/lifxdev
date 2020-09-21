@@ -2,7 +2,9 @@
 
 import collections
 import enum
+import logging
 import os
+import socket
 import struct
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Type, Union
 
@@ -69,7 +71,18 @@ class LifxStruct:
         return f"{join}"
 
     def __repr__(self) -> str:
-        return f"<{id(self)}>{self.__str__()}"
+        return f"<{type(self).__name__}({id(self)})>\n{self.__str__()}"
+
+    def __eq__(self, other: "LifxStruct") -> bool:
+        if type(self) != type(other):
+            return False
+
+        for name in self._names:
+            value_self = self.get_value(name)
+            value_other = other.get_value(name)
+            if value_self != value_other:
+                return False
+        return True
 
     @classmethod
     def from_bytes(cls, message_bytes: bytes) -> "LifxStruct":
@@ -466,14 +479,92 @@ def set_message_type(message_type: int) -> Callable:
 #
 
 
+class UdpSender(NamedTuple):
+    """Send messages to a single IP/port"""
+
+    ip: str
+    port: int
+    comm: socket.socket
+
+
 class PacketComm:
     """Communicate packets with LIFX devices"""
 
-    def __init__(self):
-        pass
-
-    def get_bytes_and_source(
+    # TODO determine the minimum buffer size for recieving messages
+    def __init__(
         self,
+        comm: UdpSender,
+        buffer_size: int = 4096,
+        verbose: bool = False,
+    ):
+        """Create a packet communicator
+
+        Args:
+            comm (socket): pre-configured UDP socket
+            buffer_size:
+        """
+        self._buffer_size = buffer_size
+        self._comm = comm
+        self._log_func = logging.info if verbose else logging.debug
+
+    @staticmethod
+    def decode_bytes(
+        message_bytes: bytes,
+        nominal_source: Optional[int] = None,
+        nominal_sequence: Optional[int] = None,
+    ) -> LifxResponse:
+        def _get_nbytes(cls: Type) -> int:
+            n_bits = 0
+            for _, rtype, rlen in cls.registers:
+                n_bits += rtype.value[0] * rlen
+            return n_bits // 8
+
+        # Decode the Frame information
+        chunk_len = _get_nbytes(Frame)
+        frame = Frame.from_bytes(message_bytes[:chunk_len])
+
+        # Verify the message size matches the expected size
+        size = frame["size"]
+        if len(message_bytes) != size:
+            raise RuntimeError(f"Message size mismatch: R({len(message_bytes)}) != E({size})")
+
+        # Verify the source is the expected source
+        if nominal_source is not None:
+            source = frame["source"]
+            if source != nominal_source:
+                raise RuntimeError(f"Source mismatch: R({source}) != E({nominal_source})")
+
+        # Decode the Frame Address
+        offset = chunk_len
+        chunk_len = _get_nbytes(FrameAddress)
+        frame_address = FrameAddress.from_bytes(message_bytes[offset : offset + chunk_len])
+
+        # Verify the sequence is the expected sequence
+        if nominal_sequence is not None:
+            sequence = frame_address["sequence"]
+            if sequence != nominal_sequence:
+                raise RuntimeError(f"Sequence mismatch: R({sequence}) != E({nominal_sequence})")
+
+        # Decode the payload
+        offset += chunk_len
+        chunk_len = _get_nbytes(ProtocolHeader)
+        protocol_header = ProtocolHeader.from_bytes(message_bytes[offset : offset + chunk_len])
+
+        offset += chunk_len
+        payload_klass = _MESSAGE_TYPES[protocol_header["type"]]
+        chunk_len = _get_nbytes(payload_klass)
+        payload = payload_klass.from_bytes(message_bytes[offset : offset + chunk_len])
+
+        return LifxResponse(
+            frame=frame,
+            frame_address=frame_address,
+            protocol_header=protocol_header,
+            payload=payload,
+        )
+
+    @staticmethod
+    def get_bytes_and_source(
+        *,
         payload: LifxMessage,
         mac_addr: Optional[Union[str, int]] = None,
         res_required: bool = False,
@@ -499,7 +590,8 @@ class PacketComm:
         protocol_header = ProtocolHeader()
 
         # Set the frame address fields
-        frame_address["target"] = mac_addr
+        if mac_addr:
+            frame_address["target"] = mac_addr
         frame_address["res_required"] = res_required
         frame_address["ack_required"] = ack_required
         frame_address["sequence"] = sequence
@@ -522,3 +614,22 @@ class PacketComm:
         packet_bytes += payload.to_bytes()
 
         return packet_bytes, frame["source"]
+
+    def send_recv(self, verbose: bool = False, **kwargs) -> Optional[LifxResponse]:
+        """Send a packet to a LIFX device and get a response"""
+        log_func = logging.info if verbose else self._log_func
+        addr = (self._comm.ip, self._comm.port)
+        comm = self._comm.comm
+
+        packet_bytes, source = self.get_bytes_and_source(**kwargs)
+
+        payload_name = kwargs["payload"].name
+        log_func(f"Sending {payload_name} message to {addr[0]}:{addr[1]}")
+        comm.sendto(packet_bytes, addr)
+
+        if kwargs.get("ack_required", False) or kwargs.get("res_required", False):
+            recv_bytes, recv_addr = comm.recvfrom(self._buffer_size)
+            response = self.decode_bytes(recv_bytes, source, kwargs.get("sequence", 0))
+            payload_name = response.payload.name
+            log_func(f"Received {payload_name} message from {recv_addr[0]}:{recv_addr[1]}")
+            return response

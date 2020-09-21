@@ -2,9 +2,26 @@
 
 import logging
 import unittest
+from typing import Tuple
 
 from lifxdev.messages import packet
 from lifxdev.messages import light_messages
+
+
+class MockSock:
+    """Mock the socket send/recv functions"""
+
+    def __init__(self):
+        self._last_bytes = b""
+        self._last_addr = ("", 0)
+
+    def sendto(self, message_bytes: bytes, addr: Tuple[str, int]):
+        self._last_addr = addr
+        self._last_bytes = message_bytes
+        return len(message_bytes)
+
+    def recvfrom(self, buffer_size) -> Tuple[bytes, Tuple[str, int]]:
+        return (self._last_bytes, self._last_addr)
 
 
 class PacketTest(unittest.TestCase):
@@ -82,11 +99,12 @@ class PacketTest(unittest.TestCase):
         self.assertEqual(ph_from_bytes["type"], light_messages.SetColor.type)
 
     def test_packet(self):
-        lifx_packet = packet.PacketComm()
         hsbk = packet.Hsbk(hue=21845, saturation=65535, brightness=65535, kelvin=3500)
         green = light_messages.SetColor(color=hsbk, duration=1024)
+        comm = packet.UdpSender(ip="127.0.0.1", port=56700, comm=MockSock())
+        packet_comm = packet.PacketComm(comm)
 
-        payload_bytes, _ = lifx_packet.get_bytes_and_source(
+        payload_bytes, _ = packet_comm.get_bytes_and_source(
             payload=green,
             mac_addr="00:00:00:00:00:00",
             res_required=False,
@@ -147,8 +165,24 @@ class PacketTest(unittest.TestCase):
             0x00,
             0x00,
         ]
-        payload_bytes = [int(bb) for bb in payload_bytes]
-        self.assertEqual(payload_bytes, lifx_ref)
+        payload_bytes_array = [int(bb) for bb in payload_bytes]
+        self.assertEqual(payload_bytes_array, lifx_ref)
+
+        # Test the full encode-send-receive-decode chain
+        response = packet_comm.send_recv(
+            payload=green,
+            mac_addr="00:00:00:00:00:00",
+            res_required=True,
+            ack_required=False,
+            sequence=123,
+            source=1234,
+            verbose=True,
+        )
+
+        self.assertEqual(response.frame["source"], 1234)
+        self.assertEqual(response.frame_address["sequence"], 123)
+        self.assertEqual(response.protocol_header["type"], green.type)
+        self.assertEqual(response.payload["color"], hsbk)
 
 
 if __name__ == "__main__":
