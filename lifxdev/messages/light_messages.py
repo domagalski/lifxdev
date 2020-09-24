@@ -1,11 +1,11 @@
 #!/usr/bin/env pythom3
 
-from typing import Union
-
 """Light messages
 
 https://lan.developer.lifx.com/docs/light-messages
 """
+
+from typing import Union
 
 from lifxdev.messages import packet
 
