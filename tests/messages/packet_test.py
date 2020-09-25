@@ -4,6 +4,8 @@ import logging
 import unittest
 from typing import Tuple
 
+import coloredlogs
+
 from lifxdev.messages import packet
 from lifxdev.messages import light_messages
 
@@ -186,5 +188,5 @@ class PacketTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    coloredlogs.install(level=logging.INFO)
     unittest.main()
