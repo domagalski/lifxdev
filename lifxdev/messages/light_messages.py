@@ -65,7 +65,9 @@ class SetPower(packet.LifxMessage):
         if name.lower() == "level":
             if isinstance(value, bool):
                 value *= 65535
-            if value not in [0, 65535]:
+            elif isinstance(value, list) and value[0] not in [0, 65535]:
+                raise ValueError("SetPower level must be either 0 or 65535")
+            elif not isinstance(value, list) and value not in [0, 65535]:
                 raise ValueError("SetPower level must be either 0 or 65535")
         super().set_value(name, value)
 

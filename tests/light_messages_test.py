@@ -3,6 +3,8 @@
 import logging
 import unittest
 
+import coloredlogs
+
 from lifxdev.messages import packet
 from lifxdev.messages import light_messages
 
@@ -61,7 +63,20 @@ class LightMessageTest(unittest.TestCase):
         self.assertEqual(color_from_bytes["duration"], color["duration"])
         self.assertEqual(color_from_bytes.type, color.type)
 
+    def test_all_messages(self):
+        """Test that registers are all valid"""
+        logging.info(light_messages.Get())
+        logging.info(light_messages.SetColor())
+        logging.info(light_messages.SetWaveform())
+        logging.info(light_messages.State())
+        logging.info(light_messages.GetPower())
+        logging.info(light_messages.SetPower())
+        logging.info(light_messages.StatePower())
+        logging.info(light_messages.GetInfrared())
+        logging.info(light_messages.SetInfrared())
+        logging.info(light_messages.StateInfrared())
+
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    coloredlogs.install(level=logging.INFO)
     unittest.main()

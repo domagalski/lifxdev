@@ -100,7 +100,9 @@ class SetPower(packet.LifxMessage):
         if name.lower() == "level":
             if isinstance(value, bool):
                 value *= 65535
-            if value not in [0, 65535]:
+            elif isinstance(value, list) and value[0] not in [0, 65535]:
+                raise ValueError("SetPower level must be either 0 or 65535")
+            elif not isinstance(value, list) and value not in [0, 65535]:
                 raise ValueError("SetPower level must be either 0 or 65535")
         super().set_value(name, value)
 
@@ -122,16 +124,12 @@ class GetLabel(packet.LifxMessage):
 
 @packet.set_message_type(24)
 class SetLabel(packet.LifxMessage):
-    registers: packet.REGISTER_T = [
-        ("label", packet.LifxType.char, 32),
-    ]
+    registers: packet.REGISTER_T = [("label", packet.LifxType.char, 32)]
 
 
 @packet.set_message_type(25)
 class StateLabel(packet.LifxMessage):
-    registers: packet.REGISTER_T = [
-        ("label", packet.LifxType.char, 32),
-    ]
+    registers: packet.REGISTER_T = [("label", packet.LifxType.char, 32)]
 
 
 @packet.set_message_type(32)
@@ -160,11 +158,6 @@ class StateInfo(packet.LifxMessage):
         ("uptime", packet.LifxType.u64, 1),
         ("downtime", packet.LifxType.u64, 1),
     ]
-
-
-@packet.set_message_type(45)
-class Acknowledgement(packet.LifxMessage):
-    pass
 
 
 @packet.set_message_type(48)
@@ -215,13 +208,9 @@ class StateGroup(packet.LifxMessage):
 
 @packet.set_message_type(58)
 class EchoRequest(packet.LifxMessage):
-    registers: packet.REGISTER_T = [
-        ("payload", packet.LifxType.char, 64),
-    ]
+    registers: packet.REGISTER_T = [("payload", packet.LifxType.char, 64)]
 
 
 @packet.set_message_type(59)
 class EchoResponse(packet.LifxMessage):
-    registers: packet.REGISTER_T = [
-        ("payload", packet.LifxType.char, 64),
-    ]
+    registers: packet.REGISTER_T = [("payload", packet.LifxType.char, 64)]

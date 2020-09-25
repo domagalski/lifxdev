@@ -34,7 +34,7 @@ class SetExtendedColorZones(packet.LifxMessage):
                 value = ApplicationRequest[value].value
             elif isinstance(value, ApplicationRequest):
                 value = value.value
-            else:
+            elif isinstance(value, int):
                 if value not in [ar.value for ar in ApplicationRequest]:
                     raise ValueError(f"Invalid application request: {value}")
         super().set_value(name, value)

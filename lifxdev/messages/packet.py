@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Type, Unio
 
 from lifxdev.util import util
 
+LIFX_PORT = 56700
 REGISTER_T = List[Tuple[str, Optional[int], str]]
 
 
@@ -214,21 +215,9 @@ class LifxStruct:
 
         # Set the value to the internal values dict
         if isinstance(value, list):
-            self._values[name] = [self._check_value(name, vv) for vv in value]
+            self._values[name] = value
         else:
-            self._values[name][idx] = self._check_value(name, value)
-
-    def _check_value(self, name: str, value: int) -> int:
-        """Valudate that an integer value is within its bounds"""
-        # Don't do an int check if the value is a LifxStruct type
-        if not isinstance(self._types[name], LifxType):
-            return value
-
-        # TODO signed integers
-        value = int(value)
-        if value < 0 or value >= (1 << self._sizes[name]):
-            raise ValueError(f"value {value} out of bounds for register {name!r}")
-        return value
+            self._values[name][idx] = value
 
     def to_bytes(self) -> bytes:
         """Convert the LifxStruct to its bytes representation
@@ -437,10 +426,18 @@ class LifxMessage(LifxStruct):
     type: Optional[int] = None
 
     def __repr__(self) -> str:
-        return f"<{self.name}({self.type}): {id(self)}>\n{super().__str__()}"
+        super_str = super().__str__()
+        msg_str = f"<{self.name}({self.type}): {id(self)}>"
+        if super_str:
+            msg_str = f"{msg_str}\n{super_str}"
+        return msg_str
 
     def __str__(self) -> str:
-        return f"<{self.name}({self.type})>\n{super().__str__()}"
+        super_str = super().__str__()
+        msg_str = f"<{self.name}({self.type})>"
+        if super_str:
+            msg_str = f"{msg_str}\n{super_str}"
+        return msg_str
 
 
 class LifxResponse(NamedTuple):
@@ -448,6 +445,22 @@ class LifxResponse(NamedTuple):
     frame_address: FrameAddress
     protocol_header: ProtocolHeader
     payload: LifxMessage
+
+    def __str__(self) -> str:
+        return "\n".join(
+            [
+                "LifxResponse.frame:",
+                str(self.frame),
+                "---",
+                "LifxResponse.frame_address:",
+                str(self.frame_address),
+                "---",
+                "LifxResponse.protocol_header:",
+                str(self.protocol_header),
+                "---",
+                str(self.payload),
+            ]
+        )
 
 
 # Used for parsing responses from LIFX bulbs
@@ -474,6 +487,17 @@ def set_message_type(message_type: int) -> Callable:
     return _msg_type_decorator
 
 
+@set_message_type(45)
+class Acknowledgement(LifxMessage):
+    """Acknowledgement message
+
+    Defined here: https://lan.developer.lifx.com/docs/device-messages
+    This is the message type returned when ack_required=True in the frame address.
+    """
+
+    pass
+
+
 #
 # Socket communication
 #
@@ -482,21 +506,24 @@ def set_message_type(message_type: int) -> Callable:
 class UdpSender(NamedTuple):
     """Send messages to a single IP/port"""
 
+    # IP address of the LIFX device.
     ip: str
-    port: int
+
+    # UDP socket for communication
     comm: socket.socket
+
+    # UDP port on the LIFX device
+    port: int = LIFX_PORT
+
+    # Mac address of the LIFX device
+    mac_addr: Optional[str] = None
 
 
 class PacketComm:
     """Communicate packets with LIFX devices"""
 
     # TODO determine the minimum buffer size for recieving messages
-    def __init__(
-        self,
-        comm: UdpSender,
-        buffer_size: int = 4096,
-        verbose: bool = False,
-    ):
+    def __init__(self, comm: UdpSender, buffer_size: int = 4096, verbose: bool = False):
         """Create a packet communicator
 
         Args:
@@ -621,12 +648,14 @@ class PacketComm:
         addr = (self._comm.ip, self._comm.port)
         comm = self._comm.comm
 
+        kwargs["mac_addr"] = self._comm.mac_addr
         packet_bytes, source = self.get_bytes_and_source(**kwargs)
 
         payload_name = kwargs["payload"].name
         log_func(f"Sending {payload_name} message to {addr[0]}:{addr[1]}")
         comm.sendto(packet_bytes, addr)
 
+        # TODO handle calls where multiple responses are expected.
         if kwargs.get("ack_required", False) or kwargs.get("res_required", False):
             recv_bytes, recv_addr = comm.recvfrom(self._buffer_size)
             response = self.decode_bytes(recv_bytes, source, kwargs.get("sequence", 0))
