@@ -16,6 +16,7 @@ class MockSock:
     def __init__(self):
         self._last_bytes = b""
         self._last_addr = ("", 0)
+        self._blocking = True
 
     def sendto(self, message_bytes: bytes, addr: Tuple[str, int]):
         self._last_addr = addr
@@ -23,7 +24,13 @@ class MockSock:
         return len(message_bytes)
 
     def recvfrom(self, buffer_size) -> Tuple[bytes, Tuple[str, int]]:
-        return (self._last_bytes, self._last_addr)
+        if self._blocking:
+            return (self._last_bytes, self._last_addr)
+        else:
+            raise BlockingIOError
+
+    def setblocking(self, state: bool):
+        self._blocking = state
 
 
 class PacketTest(unittest.TestCase):
@@ -171,7 +178,7 @@ class PacketTest(unittest.TestCase):
         self.assertEqual(payload_bytes_array, lifx_ref)
 
         # Test the full encode-send-receive-decode chain
-        response = packet_comm.send_recv(
+        responses = packet_comm.send_recv(
             payload=green,
             mac_addr="00:00:00:00:00:00",
             res_required=True,
@@ -181,6 +188,9 @@ class PacketTest(unittest.TestCase):
             verbose=True,
         )
 
+        self.assertEqual(len(responses), 1)
+        response = responses.pop()
+        self.assertEqual(response.addr, ("127.0.0.1", packet.LIFX_PORT))
         self.assertEqual(response.frame["source"], 1234)
         self.assertEqual(response.frame_address["sequence"], 123)
         self.assertEqual(response.protocol_header["type"], green.type)

@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Type, Unio
 
 from lifxdev.util import util
 
+BUFFER_SIZE = 4096
 LIFX_PORT = 56700
 REGISTER_T = List[Tuple[str, Optional[int], str]]
 
@@ -441,6 +442,7 @@ class LifxMessage(LifxStruct):
 
 
 class LifxResponse(NamedTuple):
+    addr: Tuple[str, int]
     frame: Frame
     frame_address: FrameAddress
     protocol_header: ProtocolHeader
@@ -449,6 +451,8 @@ class LifxResponse(NamedTuple):
     def __str__(self) -> str:
         return "\n".join(
             [
+                f"IP: {self.addr[0]}:{self.addr[1]}",
+                "---",
                 "LifxResponse.frame:",
                 str(self.frame),
                 "---",
@@ -518,25 +522,28 @@ class UdpSender(NamedTuple):
     # Mac address of the LIFX device
     mac_addr: Optional[str] = None
 
+    # Buffer size for receiving UDP messages
+    buffer_size: int = BUFFER_SIZE
+
 
 class PacketComm:
     """Communicate packets with LIFX devices"""
 
     # TODO determine the minimum buffer size for recieving messages
-    def __init__(self, comm: UdpSender, buffer_size: int = 4096, verbose: bool = False):
+    def __init__(self, comm: UdpSender, verbose: bool = False):
         """Create a packet communicator
 
         Args:
-            comm (socket): pre-configured UDP socket
-            buffer_size:
+            comm: (socket) pre-configured UDP socket.
+            verbose: (bool) If true, log to info instead of debug.
         """
-        self._buffer_size = buffer_size
         self._comm = comm
         self._log_func = logging.info if verbose else logging.debug
 
     @staticmethod
     def decode_bytes(
         message_bytes: bytes,
+        message_addr: Tuple[str, int],
         nominal_source: Optional[int] = None,
         nominal_sequence: Optional[int] = None,
     ) -> LifxResponse:
@@ -583,6 +590,7 @@ class PacketComm:
         payload = payload_klass.from_bytes(message_bytes[offset : offset + chunk_len])
 
         return LifxResponse(
+            addr=message_addr,
             frame=frame,
             frame_address=frame_address,
             protocol_header=protocol_header,
@@ -629,8 +637,8 @@ class PacketComm:
         protocol_header["type"] = payload.type
 
         # Generate the frame
-        # tagged must be true when sending a GetService message
-        frame["tagged"] = bool(mac_addr) or payload.type == 2
+        # tagged must be true when sending a GetService(2)
+        frame["tagged"] = not sum(frame_address["target"]) or payload.type == 2
         frame["source"] = os.getpid() if source is None else source
         frame["size"] = len(frame) + len(frame_address) + len(protocol_header) + len(payload)
 
@@ -642,8 +650,8 @@ class PacketComm:
 
         return packet_bytes, frame["source"]
 
-    def send_recv(self, verbose: bool = False, **kwargs) -> Optional[LifxResponse]:
-        """Send a packet to a LIFX device and get a response"""
+    def send_recv(self, verbose: bool = False, **kwargs) -> Optional[List[LifxResponse]]:
+        """Send a packet to a LIFX device or broadcast address and get responses"""
         log_func = logging.info if verbose else self._log_func
         addr = (self._comm.ip, self._comm.port)
         comm = self._comm.comm
@@ -655,10 +663,25 @@ class PacketComm:
         log_func(f"Sending {payload_name} message to {addr[0]}:{addr[1]}")
         comm.sendto(packet_bytes, addr)
 
-        # TODO handle calls where multiple responses are expected.
         if kwargs.get("ack_required", False) or kwargs.get("res_required", False):
-            recv_bytes, recv_addr = comm.recvfrom(self._buffer_size)
-            response = self.decode_bytes(recv_bytes, source, kwargs.get("sequence", 0))
-            payload_name = response.payload.name
-            log_func(f"Received {payload_name} message from {recv_addr[0]}:{recv_addr[1]}")
-            return response
+            responses = []
+            first_iter = True
+            while True:
+                if not first_iter:
+                    comm.setblocking(False)
+                try:
+                    recv_bytes, recv_addr = comm.recvfrom(self._comm.buffer_size)
+                # This error happens when there are no more packets to receive.
+                except BlockingIOError:
+                    comm.setblocking(True)
+                    break
+
+                first_iter = False
+                response = self.decode_bytes(
+                    recv_bytes, recv_addr, source, kwargs.get("sequence", 0)
+                )
+                responses.append(response)
+                payload_name = response.payload.name
+                log_func(f"Received {payload_name} message from {recv_addr[0]}:{recv_addr[1]}")
+
+            return responses
