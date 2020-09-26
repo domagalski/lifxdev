@@ -9,6 +9,15 @@ from lifxdev.messages import device_messages
 
 
 class DeviceMessageTest(unittest.TestCase):
+    def test_echo(self):
+        msg = "hello there"
+        echo = device_messages.EchoRequest(payload=msg)
+        echo_bytes = echo.to_bytes()
+        recovered = device_messages.EchoRequest.from_bytes(echo_bytes)
+        logging.info(recovered)
+        payload = recovered["payload"]
+        self.assertEqual(msg, payload)
+
     def test_all_messages(self):
         """Test that registers are all valid"""
         logging.info(device_messages.GetService())

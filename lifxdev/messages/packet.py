@@ -6,8 +6,9 @@ import logging
 import os
 import socket
 import struct
+import sys
 import time
-from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Type, Union
 
 from lifxdev.util import util
 
@@ -52,6 +53,12 @@ class LifxStruct:
     def __init__(self, **kwargs):
         # Set to tuples because they're immutable. _names and _sizes should not be changed.
         self._names: Tuple[str, ...] = tuple([rr[0].lower() for rr in self.registers])
+        for kw in kwargs:
+            if kw not in self._names:
+                name = type(self).__name__
+                if hasattr(self, "name"):
+                    name = self.name
+                raise ValueError(f"Invalid keyword arg for {name}: {kw}")
 
         self._types = collections.OrderedDict()
         self._sizes = collections.OrderedDict()
@@ -69,7 +76,7 @@ class LifxStruct:
             self.set_value(name, kwargs.get(name, default))
 
     def __str__(self) -> str:
-        segments = [f"{nn}={self.get_value(nn)}" for nn in self._names]
+        segments = [f"{nn}={self.get_value(nn)!r}" for nn in self._names]
         join = "\n".join(segments)
         return f"{join}"
 
@@ -145,6 +152,46 @@ class LifxStruct:
         name = name.lower()
         return self._types[name]
 
+    @staticmethod
+    def get_nbits_and_signed(register_type: LifxType) -> Tuple[int, bool]:
+        """Get the number of bits used to represent positive numbers for a type"""
+        n_bits = register_type.value[0]
+        # struct identifiers are lowercase for signed types
+        signed = register_type.value[1] == register_type.value[1].lower()
+        # if signed int, one of the bits is for determining the signed.
+        if signed:
+            n_bits -= 1
+        return n_bits, signed
+
+    def get_max(self, name: str) -> int:
+        """Get the maximum value a member of an integer register can hold"""
+        register_type = self.get_type(name)
+        if register_type.value[1] is None:
+            raise NotImplementedError(f"Maximum undefined for type: {register_type}")
+
+        # Floating point maximum
+        if register_type.value[1] == "f":
+            return sys.float_info.max
+
+        n_bits, _ = self.get_nbits_and_signed(register_type)
+        return (1 << n_bits) - 1
+
+    def get_min(self, name: str) -> int:
+        """Get the minimum value a member of an integer register can hold"""
+        register_type = self.get_type(name)
+        if register_type.value[1] is None:
+            raise NotImplementedError(f"Maximum undefined for type: {register_type}")
+
+        # Floating point minimum
+        if register_type.value[1] == "f":
+            return -sys.float_info.min
+
+        n_bits, signed = self.get_nbits_and_signed(register_type)
+        if signed:
+            return -1 << n_bits
+        else:
+            return 0
+
     @property
     def value(self) -> Tuple[int, None]:
         """Mimic the value attribute of the LifxType enum"""
@@ -157,10 +204,10 @@ class LifxStruct:
         """Return the number of bytes in the LifxStruct"""
         return self.get_size_bytes()
 
-    def __getitem__(self, name: str) -> Union[int, List[int]]:
+    def __getitem__(self, name: str) -> Any:
         return self.get_value(name)
 
-    def get_value(self, name: str) -> Union[int, List[int]]:
+    def get_value(self, name: str) -> Any:
         """Get a register value by name.
 
         Returns:
@@ -170,20 +217,35 @@ class LifxStruct:
         if name not in self._names:
             raise KeyError(f"{name!r} not a valid register name")
 
+        register_type = self.get_type(name)
         value = self._values[name]
-        if len(value) == 1:
+        if register_type.value[1] == "c":
+            value = bytes(value).decode()
+            # strip null bytes
+            idx = value.find(chr(0))
+            if idx >= 0:
+                value = value[:idx]
+        elif len(value) == 1:
             value = value[0]
         return value
 
-    def __setitem__(self, name: str, value: int) -> None:
+    def _check_value(self, value: Any, name: str) -> Any:
+        """Validate integer values are within bounds"""
+        # Only integer/floating values can be checked.
+        register_type = self.get_type(name)
+        if not register_type.value[1] or register_type.value[1] == "c":
+            return value
+
+        min_value = self.get_min(name)
+        max_value = self.get_max(name)
+        if value < min_value or value > max_value:
+            raise ValueError(f"value {value} out of bounds for register {name!r}")
+        return value
+
+    def __setitem__(self, name: str, value: Any) -> None:
         self.set_value(name, value)
 
-    def set_value(
-        self,
-        name: str,
-        value: Union[int, "LifxStruct", List[int], List["LifxStruct"]],
-        idx: Optional[int] = None,
-    ) -> None:
+    def set_value(self, name: str, value: Any, idx: Optional[int] = None) -> None:
         """Set a register value by name.
 
         Args:
@@ -200,9 +262,25 @@ class LifxStruct:
             value = [0] * self.get_array_size(name)
             idx = None
 
-        # Validate that if a list was passed, that it matches the register length
+        # Convert strings to bytes and pad them with zeros at the end of they are short
         n_items = self._lens[name]
-        if isinstance(value, list):
+        if isinstance(value, (bytes, str)):
+            if isinstance(value, str):
+                value = value.encode()
+            if len(value) < n_items:
+                margin = n_items - len(value)
+                value += bytes(margin * [0])
+
+        # Store char values as bytes always
+        register_type = self._types[name]
+        if register_type.value[1] == "c" and isinstance(value, (list, tuple)):
+            if all([isinstance(vv, bytes) for vv in value]):
+                value = b"".join(value)
+            elif all([isinstance(vv, int) for vv in value]):
+                value = bytes(value)
+
+        # Validate that if a list was passed, that it matches the register length
+        if isinstance(value, (bytes, list, str, tuple)):
             if len(value) != n_items:
                 raise ValueError(
                     f"Value has length {len(value)}, "
@@ -216,10 +294,12 @@ class LifxStruct:
             raise ValueError("idx cannot be none for a singular value")
 
         # Set the value to the internal values dict
-        if isinstance(value, list):
+        if isinstance(value, (bytes, str)):
             self._values[name] = value
+        elif isinstance(value, (list, tuple)):
+            self._values[name] = [self._check_value(vv, name) for vv in value]
         else:
-            self._values[name][idx] = value
+            self._values[name][idx] = self._check_value(value, name)
 
     def to_bytes(self) -> bytes:
         """Convert the LifxStruct to its bytes representation
@@ -241,7 +321,11 @@ class LifxStruct:
                 if rtype.value[1] is None:
                     raise RuntimeError(f"Register {rname} cannot be represented as bytes.")
                 fmt = "<" + rtype.value[1] * rlen
-                message_bytes += struct.pack(fmt, *self._values[rname])
+                values = self._values[rname]
+                # Convert bytes  to list for struct packing
+                if isinstance(values, bytes):
+                    values = [bytes([vv]) for vv in values]
+                message_bytes += struct.pack(fmt, *values)
 
             # Use the LifxStruct to_bytes when not a LifxType
             else:

@@ -10,6 +10,35 @@ from lifxdev.messages import light_messages
 
 
 class LightMessageTest(unittest.TestCase):
+    def test_state_message(self):
+        """Mixture of ints and bytes"""
+        hsbk = packet.Hsbk()
+        hsbk["hue"] = 21845  # Green
+        hsbk["saturation"] = 65535
+        hsbk["brightness"] = 65535
+        hsbk["kelvin"] = 3500
+        state = light_messages.State(color=hsbk, label="example", power=True)
+        state_bytes = state.to_bytes()
+        self.assertEqual(light_messages.State.from_bytes(state_bytes), state)
+
+    def test_set_waveform(self):
+        """contains a float"""
+        hsbk = packet.Hsbk()
+        hsbk["hue"] = 21845  # Green
+        hsbk["saturation"] = 65535
+        hsbk["brightness"] = 65535
+        hsbk["kelvin"] = 3500
+        waveform = light_messages.SetWaveform(
+            transient=1, color=hsbk, period=1000, cycles=3.14, skew_ratio=10
+        )
+        waveform_bytes = waveform.to_bytes()
+        recovered = light_messages.SetWaveform.from_bytes(waveform_bytes)
+        for (name, _, _) in waveform.registers:
+            if name == "cycles":
+                self.assertAlmostEqual(waveform[name], recovered[name], 3)
+            else:
+                self.assertEqual(waveform[name], recovered[name])
+
     def test_set_color(self):
         # Green according to the LIFX packet tutorial:
         # https://lan.developer.lifx.com/docs/building-a-lifx-packet
