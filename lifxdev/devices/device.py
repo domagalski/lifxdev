@@ -79,3 +79,8 @@ class LifxDevice:
         """Return True if the light is powered on."""
         response = self.send_recv(device_messages.GetPower(), res_required=True)
         return response[0].payload["level"]
+
+    def set_power(self, state: bool, *, ack_required=True) -> Optional[packet.LifxResponse]:
+        """Set power state on the device"""
+        power = device_messages.SetPower(level=state)
+        return self.send_recv(power, ack_required=ack_required)

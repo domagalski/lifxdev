@@ -71,11 +71,16 @@ class LifxLight(device.LifxDevice):
             return self.get_color()
 
     def set_infrared(self, brightness: float, *, ack_required: bool = True) -> Optional[float]:
+        """Set infrared level on the bulb with 1.0 being the max"""
         ir = light_messages.SetInfrared()
         max_brightness = ir.get_max("brightness")
         ir["brightness"] = int(brightness * max_brightness)
         if self.send_recv(ir, ack_required=ack_required):
             return self.get_infrared()
 
-    # def set_power(self, state: bool, duration_s: float, *, ack_required: bool = True):
-    #    """
+    def set_power(
+        self, state: bool, duration_s: float, *, ack_required: bool = True
+    ) -> Optional[packet.LifxResponse]:
+        """Set power state on the bulb"""
+        power = light_messages.SetPower(level=state, duration=int(duration_s * 1e3))
+        return self.send_recv(power, ack_required=ack_required)
