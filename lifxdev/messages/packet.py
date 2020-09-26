@@ -6,6 +6,7 @@ import logging
 import os
 import socket
 import struct
+import time
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Type, Union
 
 from lifxdev.util import util
@@ -610,11 +611,11 @@ class PacketComm:
         """Generate LIFX packet bytes.
 
         Args:
+            payload: (LifxMessage) Payload to encode as bytes.
             mac_addr: (str) MAC address of the target bulb.
             res_required: (bool) Require a response from the light.
             ack_required: (bool) Require an acknowledgement from the light.
             sequence: (int) Optional identifier to label packets.
-            payload: (LifxStruct): Optional payload LifxStruct.
             source: (int) Optional unique identifier to
 
         Returns:
@@ -667,13 +668,23 @@ class PacketComm:
             responses = []
             first_iter = True
             while True:
-                if not first_iter:
+                has_timeout = bool(comm.gettimeout())
+                if not (first_iter or has_timeout):
+                    # Sleep a small amount of time to wait for responses.
+                    if comm.getblocking():
+                        time.sleep(0.1)
                     comm.setblocking(False)
+
+                # Get responses
                 try:
                     recv_bytes, recv_addr = comm.recvfrom(self._comm.buffer_size)
                 # This error happens when there are no more packets to receive.
                 except BlockingIOError:
                     comm.setblocking(True)
+                    break
+
+                # If a timeout is being used, then there are no more packets.
+                except socket.timeout:
                     break
 
                 first_iter = False

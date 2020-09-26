@@ -2,7 +2,7 @@
 
 import logging
 import unittest
-from typing import Tuple
+from typing import Optional, Tuple
 
 import coloredlogs
 
@@ -17,6 +17,7 @@ class MockSock:
         self._last_bytes = b""
         self._last_addr = ("", 0)
         self._blocking = True
+        self._timeout = None
 
     def sendto(self, message_bytes: bytes, addr: Tuple[str, int]):
         self._last_addr = addr
@@ -29,8 +30,17 @@ class MockSock:
         else:
             raise BlockingIOError
 
+    def getblocking(self) -> bool:
+        return self._blocking
+
+    def gettimeout(self) -> Optional[float]:
+        return self._timeout
+
     def setblocking(self, state: bool):
         self._blocking = state
+
+    def settimeout(self, timeout: Optional[float]):
+        self._timeout = timeout
 
 
 class PacketTest(unittest.TestCase):
