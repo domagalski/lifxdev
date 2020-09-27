@@ -45,6 +45,4 @@ class LifxMultiZone(light.LifxLight):
         set_colors["colors_count"] = len(colors)
         for ii, color in enumerate(colors):
             set_colors.set_value("colors", color.to_packet(), index + ii)
-        response = self.send_recv(set_colors, ack_required=ack_required)
-        if response:
-            return response[0]
+        return self.send_msg(set_colors, ack_required=ack_required)

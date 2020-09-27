@@ -95,9 +95,7 @@ class LifxLight(device.LifxDevice):
             color=hsbk.to_packet(),
             duration=int(duration_s * 1000),
         )
-        response = self.send_recv(set_color_msg, ack_required=ack_required)
-        if response:
-            return response[0]
+        return self.send_msg(set_color_msg, ack_required=ack_required)
 
     def set_power(
         self,
@@ -117,9 +115,7 @@ class LifxLight(device.LifxDevice):
             If ack_required, get an acknowledgement LIFX response tuple.
         """
         power = light_messages.SetPower(level=state, duration=int(duration_s * 1000))
-        response = self.send_recv(power, ack_required=ack_required)
-        if response:
-            return response[0]
+        return self.send_msg(power, ack_required=ack_required)
 
 
 class LifxInfraredLight(LifxLight):
@@ -146,9 +142,7 @@ class LifxInfraredLight(LifxLight):
         ir = light_messages.SetInfrared()
         max_brightness = ir.get_max("brightness")
         ir["brightness"] = int(brightness * max_brightness)
-        response = self.send_recv(ir, ack_required=ack_required)
-        if response:
-            return response[0]
+        return self.send_msg(ir, ack_required=ack_required)
 
 
 def rgba2hsbk(rgba: Rgba, kelvin: int) -> Hsbk:

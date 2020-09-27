@@ -6,6 +6,7 @@ import unittest
 import coloredlogs
 
 from lifxdev.devices import light
+from lifxdev.messages import packet
 from lifxdev.messages import test_utils
 
 
@@ -54,12 +55,12 @@ class LightTest(unittest.TestCase):
         self.assertEqual(hsbk.kelvin, response.kelvin)
 
     def test_set_infrared(self):
-        self.assertIsNotNone(self.lifx.set_infrared(1.0))
+        self.assertIsInstance(self.lifx.set_infrared(1.0), packet.LifxResponse)
         ir_level = self.lifx.get_infrared()
         self.assertAlmostEqual(ir_level, 1.0)
 
     def test_set_power(self):
-        self.assertIsNotNone(self.lifx.set_power(True, 0))
+        self.assertIsInstance(self.lifx.set_power(True, 0), packet.LifxResponse)
         self.assertTrue(self.lifx.get_power())
 
 

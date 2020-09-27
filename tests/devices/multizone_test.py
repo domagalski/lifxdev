@@ -7,6 +7,7 @@ import coloredlogs
 
 from lifxdev.devices import light
 from lifxdev.devices import multizone
+from lifxdev.messages import packet
 from lifxdev.messages import test_utils
 
 
@@ -22,7 +23,7 @@ class MultiZoneTest(unittest.TestCase):
         colors = [
             light.Hsbk(hue=20 * ii, saturation=1, brightness=1, kelvin=5500) for ii in range(16)
         ]
-        self.assertIsNotNone(self.lifx.set_multizone(colors, 0))
+        self.assertIsInstance(self.lifx.set_multizone(colors, 0), packet.LifxResponse)
         recovered_colors = self.lifx.get_multizone()
         self.assertEqual(len(colors), len(recovered_colors))
         for original, recovered in zip(colors, recovered_colors):

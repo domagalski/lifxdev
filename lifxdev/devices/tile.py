@@ -59,6 +59,4 @@ class LifxTile(light.LifxLight):
         set_request["length"] = length
         set_request["duration"] = int(duration_s * 1000)
         set_request["colors"] = [hsbk.to_packet() for hsbk in colors]
-        response = self.send_recv(set_request, ack_required=ack_required)
-        if response:
-            return response[0]
+        return self.send_msg(set_request, ack_required=ack_required)

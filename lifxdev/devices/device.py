@@ -53,6 +53,29 @@ class LifxDevice:
         )
         return cls(udp_sender, verbose)
 
+    def send_msg(
+        self,
+        payload: packet.LifxMessage,
+        *,
+        ack_required,
+        bool=True,
+        verbose: bool = False,
+    ) -> Optional[packet.LifxResponse]:
+        """Send a message to a device.
+
+        This can be used to send any LIFX message to the device. Functions
+        that send messages to the device will all wrap this function. This
+        function can be used when a wrapper for a message is not available.
+
+        Args:
+            payload: (packet.LifxMessage) LIFX message to send to a device.
+            ack_required: (bool) Require an acknowledgement from the device.
+            verbose: (bool) Log messages as info instead of debug.
+        """
+        response = self.send_recv(payload, ack_required=ack_required, verbose=verbose)
+        if response:
+            return response[0]
+
     def send_recv(
         self,
         payload: packet.LifxMessage,
@@ -68,9 +91,9 @@ class LifxDevice:
         function can be used when a wrapper for a message is not available.
 
         Args:
-            payload: (packet.LifxMessage) LIFX message to send to a device
+            payload: (packet.LifxMessage) LIFX message to send to a device.
             res_required: (bool) Require a response from the light.
-            ack_required: (bool) Require an acknowledgement from the light.
+            ack_required: (bool) Require an acknowledgement from the device.
             verbose: (bool) Log messages as info instead of debug.
         """
         if res_required and ack_required:
