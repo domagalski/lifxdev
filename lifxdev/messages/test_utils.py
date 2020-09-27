@@ -48,6 +48,12 @@ class MockSocket:
             # Set up some defaults
             if name in ["State", "StateLabel"]:
                 message["label"] = self._label
+            elif name == "StateDeviceChain":
+                message["total_count"] = 1
+                tile = message["tile_devices"][0]
+                tile["width"] = 8
+                tile["height"] = 8
+                message["tile_devices"][0] = tile
             elif name == "StateService":
                 message["service"] = 1
                 message["port"] = packet.LIFX_PORT

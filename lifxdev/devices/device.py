@@ -73,6 +73,8 @@ class LifxDevice:
             ack_required: (bool) Require an acknowledgement from the light.
             verbose: (bool) Log messages as info instead of debug.
         """
+        if res_required and ack_required:
+            raise ValueError("Cannot set both res_required and ack_required to True.")
         return self._comm.send_recv(
             payload=payload,
             res_required=res_required,

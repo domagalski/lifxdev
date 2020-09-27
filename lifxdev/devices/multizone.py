@@ -28,7 +28,7 @@ class LifxMultiZone(light.LifxLight):
         duration_s: float,
         *,
         index: int = 0,
-        ack_required=True,
+        ack_required: bool = True,
     ) -> Optional[packet.LifxResponse]:
         """Set the MultiZone colors.
 
@@ -40,7 +40,7 @@ class LifxMultiZone(light.LifxLight):
         """
         set_colors = multizone_messages.SetExtendedColorZones()
         set_colors["apply"] = multizone_messages.ApplicationRequest.APPLY
-        set_colors["duration"] = int(duration_s * 1e3)
+        set_colors["duration"] = int(duration_s * 1000)
         set_colors["index"] = index
         set_colors["colors_count"] = len(colors)
         for ii, color in enumerate(colors):

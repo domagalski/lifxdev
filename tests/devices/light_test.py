@@ -11,7 +11,7 @@ from lifxdev.messages import test_utils
 
 class LightTest(unittest.TestCase):
     def setUp(self):
-        self.lifx = light.LifxLight.init_from_ip_addr(
+        self.lifx = light.LifxInfraredLight.init_from_ip_addr(
             "127.0.0.1",
             nonblock_delay=0,
             comm=test_utils.MockSocket(product=test_utils.Product.LIGHT),
@@ -46,14 +46,16 @@ class LightTest(unittest.TestCase):
 
     def test_set_color(self):
         hsbk = light.Hsbk(hue=300, saturation=1, brightness=1, kelvin=5500)
-        response = self.lifx.set_color(hsbk, 0)
+        self.assertIsNotNone(self.lifx.set_color(hsbk, 0))
+        response = self.lifx.get_color()
         self.assertAlmostEqual(round(hsbk.hue), round(response.hue))
         self.assertAlmostEqual(hsbk.saturation, response.saturation)
         self.assertAlmostEqual(hsbk.brightness, response.brightness)
         self.assertEqual(hsbk.kelvin, response.kelvin)
 
     def test_set_infrared(self):
-        ir_level = self.lifx.set_infrared(1.0)
+        self.assertIsNotNone(self.lifx.set_infrared(1.0))
+        ir_level = self.lifx.get_infrared()
         self.assertAlmostEqual(ir_level, 1.0)
 
     def test_set_power(self):
