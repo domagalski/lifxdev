@@ -13,10 +13,10 @@ from lifxdev.messages import test_utils
 
 class MultiZoneTest(unittest.TestCase):
     def setUp(self):
-        self.lifx = tile.LifxTile.init_from_ip_addr(
+        self.lifx = tile.LifxTile(
             "127.0.0.1",
             nonblock_delay=0,
-            comm=test_utils.MockSocket(product=test_utils.Product.MZ),
+            comm=test_utils.MockSocket(product=test_utils.Product.TILE),
         )
 
     def test_get_device_chain(self):

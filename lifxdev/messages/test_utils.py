@@ -20,6 +20,7 @@ from lifxdev.messages import firmware_effects  # noqa: F401
 class Product(enum.Enum):
     NONE = (0, 0)
     LIGHT = (1, 27)
+    IR = (1, 29)
     MZ = (1, 38)
     TILE = (1, 55)
 
@@ -29,9 +30,11 @@ class MockSocket:
 
     def __init__(
         self,
+        *args,
         label: str = "LIFX mock",
         mac_addr: Optional[str] = None,
         product=Product.NONE,
+        **kwargs,
     ):
         self._label = label
         self._mac_addr = mac_addr

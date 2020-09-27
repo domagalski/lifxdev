@@ -1,0 +1,407 @@
+- name: LIFX
+  products:
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: Original 1000
+    pid: 1
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: Color 650
+    pid: 3
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2700
+      - 6500
+    name: White 800 (Low Voltage)
+    pid: 10
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2700
+      - 6500
+    name: White 800 (High Voltage)
+    pid: 11
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2700
+      - 6500
+    name: White 900 BR30 (Low Voltage)
+    pid: 18
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: Color 1000 BR30
+    pid: 20
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: Color 1000
+    pid: 22
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX A19
+    pid: 27
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX BR30
+    pid: 28
+  - features:
+      chain: false
+      color: true
+      infrared: true
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX+ A19
+    pid: 29
+  - features:
+      chain: false
+      color: true
+      infrared: true
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX+ BR30
+    pid: 30
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: true
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX Z
+    pid: 31
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      min_ext_mz_firmware: 1532997580
+      min_ext_mz_firmware_components:
+      - 2
+      - 77
+      multizone: true
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX Z 2
+    pid: 32
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX Downlight
+    pid: 36
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX Downlight
+    pid: 37
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      min_ext_mz_firmware: 1532997580
+      min_ext_mz_firmware_components:
+      - 2
+      - 77
+      multizone: true
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX Beam
+    pid: 38
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX A19
+    pid: 43
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX BR30
+    pid: 44
+  - features:
+      chain: false
+      color: true
+      infrared: true
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX+ A19
+    pid: 45
+  - features:
+      chain: false
+      color: true
+      infrared: true
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX+ BR30
+    pid: 46
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX Mini
+    pid: 49
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 4000
+    name: LIFX Mini Warm to White
+    pid: 50
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2700
+      - 2700
+    name: LIFX Mini White
+    pid: 51
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX GU10
+    pid: 52
+  - features:
+      chain: true
+      color: true
+      infrared: false
+      matrix: true
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX Tile
+    pid: 55
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: true
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Candle
+    pid: 57
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX Mini Color
+    pid: 59
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 4000
+    name: LIFX Mini Warm to White
+    pid: 60
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2700
+      - 2700
+    name: LIFX Mini White
+    pid: 61
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX A19
+    pid: 62
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX BR30
+    pid: 63
+  - features:
+      chain: false
+      color: true
+      infrared: true
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX+ A19
+    pid: 64
+  - features:
+      chain: false
+      color: true
+      infrared: true
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2500
+      - 9000
+    name: LIFX+ BR30
+    pid: 65
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: true
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Candle
+    pid: 68
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2200
+      - 6500
+    name: LIFX Candle Warm to White
+    pid: 81
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2000
+      - 2000
+    name: LIFX Filament
+    pid: 82
+  vid: 1

@@ -10,13 +10,8 @@ from lifxdev.messages import device_messages
 class LifxDevice:
     """LIFX device control"""
 
-    def __init__(self, comm: packet.UdpSender, verbose: bool = True):
-        self._comm = packet.PacketComm(comm, verbose)
-        self._verbose = verbose
-
-    @classmethod
-    def init_from_ip_addr(
-        cls,
+    def __init__(
+        self,
         ip: str,
         mac_addr: Optional[str] = None,
         port: int = packet.LIFX_PORT,
@@ -26,7 +21,7 @@ class LifxDevice:
         broadcast: bool = False,
         verbose: bool = False,
         comm: Optional[socket.socket] = None,
-    ) -> "LifxDevice":
+    ):
         """Create a LIFX device from an IP address
 
         Args:
@@ -35,6 +30,7 @@ class LifxDevice:
             port: (int) UDP port of the device.
             buffer_size: (int) Buffer size for receiving UDP responses.
             timeout: (float) UDP response timeout.
+            nonblock_delay: (float) Delay time to wait for messages when nonblocking.
             broadcast: (bool) Whether the IP address is a broadcast address.
             verbose: (bool) Use logging.info instead of logging.debug.
             comm: (socket) Optionally override the socket used for the device class.
@@ -51,7 +47,8 @@ class LifxDevice:
             buffer_size=buffer_size,
             nonblock_delay=nonblock_delay,
         )
-        return cls(udp_sender, verbose)
+        self._comm = packet.PacketComm(udp_sender, verbose)
+        self._verbose = verbose
 
     def send_msg(
         self,
@@ -74,7 +71,7 @@ class LifxDevice:
         """
         response = self.send_recv(payload, ack_required=ack_required, verbose=verbose)
         if response:
-            return response[0]
+            return response.pop()
 
     def send_recv(
         self,
@@ -82,6 +79,10 @@ class LifxDevice:
         *,
         res_required: bool = False,
         ack_required: bool = False,
+        ip: Optional[str] = None,
+        port: Optional[int] = None,
+        mac_addr: Optional[str] = None,
+        comm: Optional[socket.socket] = None,
         verbose: bool = False,
     ) -> Optional[List[packet.LifxResponse]]:
         """Send a message to a device or broadcast address.
@@ -94,6 +95,10 @@ class LifxDevice:
             payload: (packet.LifxMessage) LIFX message to send to a device.
             res_required: (bool) Require a response from the light.
             ack_required: (bool) Require an acknowledgement from the device.
+            ip: (str) Override the IP address.
+            port: (int) Override the UDP port.
+            mac_addr: (str) Override the MAC address.
+            comm: (socket) Override the UDP socket.
             verbose: (bool) Log messages as info instead of debug.
         """
         if res_required and ack_required:
@@ -102,17 +107,16 @@ class LifxDevice:
             payload=payload,
             res_required=res_required,
             ack_required=ack_required,
+            ip=ip,
+            port=port,
+            mac_addr=mac_addr,
+            comm=comm,
             verbose=verbose or self._verbose,
         )
 
-    def get_device_info(self) -> List[packet.LifxResponse]:
-        """Get device info from one or more devices. Returns a list."""
-        return self.send_recv(device_messages.GetService(), res_required=True)
-
     def get_power(self) -> bool:
         """Return True if the light is powered on."""
-        response = self.send_recv(device_messages.GetPower(), res_required=True)
-        return response[0].payload["level"]
+        return self.send_recv(device_messages.GetPower(), res_required=True).pop().payload["level"]
 
     def set_power(self, state: bool, *, ack_required=True) -> Optional[packet.LifxResponse]:
         """Set power state on the device"""

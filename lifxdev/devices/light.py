@@ -63,7 +63,7 @@ class LifxLight(device.LifxDevice):
             The human-readable HSBK of the light.
         """
         response = self.send_recv(light_messages.Get(), res_required=True)
-        return Hsbk.from_packet(response[0].payload["color"])
+        return Hsbk.from_packet(response.pop().payload["color"])
 
     def get_power(self) -> bool:
         """Get the power state of the light.
@@ -72,7 +72,7 @@ class LifxLight(device.LifxDevice):
             True if the light is powered on. False if off.
         """
         response = self.send_recv(light_messages.GetPower(), res_required=True)
-        return response[0].payload["level"]
+        return response.pop().payload["level"]
 
     def set_color(
         self,
@@ -124,7 +124,7 @@ class LifxInfraredLight(LifxLight):
     def get_infrared(self) -> float:
         """Get the current infrared level with 1.0 being the maximum."""
         response = self.send_recv(light_messages.GetInfrared(), res_required=True)
-        ir_state = response[0].payload
+        ir_state = response.pop().payload
         return ir_state["brightness"] / ir_state.get_max("brightness")
 
     def set_infrared(

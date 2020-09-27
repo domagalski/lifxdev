@@ -738,15 +738,35 @@ class PacketComm:
 
         return packet_bytes, frame["source"]
 
-    def send_recv(self, verbose: bool = False, **kwargs) -> Optional[List[LifxResponse]]:
-        """Send a packet to a LIFX device or broadcast address and get responses"""
+    def send_recv(
+        self,
+        *,
+        ip: Optional[str] = None,
+        port: Optional[int] = None,
+        mac_addr: Optional[str] = None,
+        comm: Optional[socket.socket] = None,
+        verbose: bool = False,
+        **kwargs,
+    ) -> Optional[List[LifxResponse]]:
+        """Send a packet to a LIFX device or broadcast address and get responses
+
+        Args:
+            ip: (str) Override the IP address.
+            port: (int) Override the UDP port.
+            mac_addr: (str) Override the MAC address.
+            comm: (socket) Override the UDP socket.
+            verbose: (bool) Use logging.info for messages.
+            kwargs: Keyword arguments for for get_bytes_and_source.
+
+        Returns:
+            If a response or acknowledgement requested, return them.
+        """
         log_func = logging.info if verbose else self._log_func
-        addr = (self._comm.ip, self._comm.port)
-        comm = self._comm.comm
+        addr = (ip or self._comm.ip, port or self._comm.port)
+        comm = comm or self._comm.comm
+        kwargs["mac_addr"] = mac_addr or self._comm.mac_addr
 
-        kwargs["mac_addr"] = self._comm.mac_addr
         packet_bytes, source = self.get_bytes_and_source(**kwargs)
-
         payload_name = kwargs["payload"].name
         log_func(f"Sending {payload_name} message to {addr[0]}:{addr[1]}")
         comm.sendto(packet_bytes, addr)

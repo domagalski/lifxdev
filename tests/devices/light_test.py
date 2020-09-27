@@ -12,7 +12,7 @@ from lifxdev.messages import test_utils
 
 class LightTest(unittest.TestCase):
     def setUp(self):
-        self.lifx = light.LifxInfraredLight.init_from_ip_addr(
+        self.lifx = light.LifxInfraredLight(
             "127.0.0.1",
             nonblock_delay=0,
             comm=test_utils.MockSocket(product=test_utils.Product.LIGHT),
