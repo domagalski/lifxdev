@@ -4,13 +4,12 @@ import collections
 import enum
 import logging
 import os
+import re
 import socket
 import struct
 import sys
 import time
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Type, Union
-
-from lifxdev.util import util
 
 BUFFER_SIZE = 4096
 LIFX_PORT = 56700
@@ -414,8 +413,8 @@ class FrameAddress(LifxStruct):
         name = name.lower()
         if name == "target":
             if isinstance(value, str):
-                if util.is_str_mac(value):
-                    value = util.mac_str_to_int_list(value)
+                if is_str_mac(value):
+                    value = mac_str_to_int_list(value)
 
         super().set_value(name, value)
 
@@ -784,3 +783,46 @@ class PacketComm:
                 log_func(f"Received {payload_name} message from {recv_addr[0]}:{recv_addr[1]}")
 
             return responses
+
+
+def is_str_ipaddr(ipaddr: str) -> bool:
+    """Check of a string is an IP address"""
+    if re.match(r"(\d+)\.(\d+)\.(\d+)\.(\d+)", ipaddr) is None:
+        return False
+
+    try:
+        ip_nums = map(int, ipaddr.split("."))
+        nums_valid = [0 <= n <= 255 for n in ip_nums]
+    except ValueError:
+        return False
+
+    return all(nums_valid)
+
+
+def is_str_mac(mac: str) -> bool:
+    """Check if a string is a MAC address"""
+    if re.match(r"(\S\S):" * 5 + r"(\S\S)", mac) is None:
+        return False
+
+    try:
+        mac_nums = [int("0x" + ch, 16) for ch in mac.split(":")]
+        nums_valid = [0 <= n <= 255 for n in mac_nums]
+    except ValueError:
+        return False
+
+    return all(nums_valid)
+
+
+def _mac_str_to_int(mac_str: str) -> int:
+    # Swap endianness, then convert to an integer
+    hex_str = "0x" + "".join(reversed(mac_str.split(":")))
+    return int(hex_str, 16)
+
+
+def mac_str_to_int_list(mac_str: str) -> List[int]:
+    mac_int = _mac_str_to_int(mac_str)
+    int_list: List[int] = []
+    for _ in range(8):
+        int_list.append(mac_int % (1 << 8))
+        mac_int = mac_int >> 8
+    return int_list

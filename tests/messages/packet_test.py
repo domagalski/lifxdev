@@ -11,6 +11,16 @@ from lifxdev.messages import test_utils
 
 
 class PacketTest(unittest.TestCase):
+    def test_util(self):
+        self.assertTrue(packet.is_str_ipaddr("127.0.0.1"))
+        self.assertFalse(packet.is_str_ipaddr("123.456.789.0"))
+        self.assertFalse(packet.is_str_ipaddr("AAAAAAAAAAAAAAA"))
+        self.assertFalse(packet.is_str_ipaddr("1.2.3."))
+
+        self.assertTrue(packet.is_str_mac("ff:ff:ff:ff:ff:ff"))
+        self.assertFalse(packet.is_str_mac("aaaaaaaaaaaaaaaaaaaa"))
+        self.assertFalse(packet.is_str_mac("ab:cd:ef:gh:ij:kl"))
+
     def test_hsbk(self):
         hsbk = packet.Hsbk()
         hsbk["hue"] = 0

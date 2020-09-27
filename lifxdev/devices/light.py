@@ -43,6 +43,16 @@ class Hsbk(NamedTuple):
         return hsbk
 
 
+class Rgba(NamedTuple):
+    # TODO normalization depends on matplotlib conventions
+    """RGBA with max value as 1.0"""
+    norm: float
+    red: float
+    green: float
+    blue: float
+    alpha: float = None
+
+
 class LifxLight(device.LifxDevice):
     """Light control"""
 
@@ -131,3 +141,46 @@ class LifxLight(device.LifxDevice):
         response = self.send_recv(power, ack_required=ack_required)
         if response:
             return response[0]
+
+
+def rgba2hsbk(rgba: Rgba, kelvin: int) -> Hsbk:
+    """
+    Convert RGBA to HSBK.
+
+    Assume max(rgba) == 1
+
+    kelvin mainly sets white balance for photography.
+    """
+    red = rgba.red
+    green = rgba.green
+    blue = rgba.blue
+    max_col = max(red, green, blue)
+    min_col = min(red, green, blue)
+
+    # Get the hue
+    hue = 0
+    h_scale = 60.0
+    if max_col == min_col:
+        hue = 0.0
+    elif max_col == red:
+        hue = h_scale * ((green - blue) / (max_col - min_col))
+    elif max_col == green:
+        hue = h_scale * (2 + (blue - red) / (max_col - min_col))
+    elif max_col == blue:
+        hue = h_scale * (4 + (red - green) / (max_col - min_col))
+
+    # Fix wrapping for hue
+    while hue > 360:
+        hue -= 360
+    while hue < 0:
+        hue += 360
+
+    # get the saturation
+    sat = 0.0
+    if max_col:
+        sat = (max_col - min_col) / max_col
+
+    # brightness
+    brightness = max_col / rgba.norm
+
+    return Hsbk(hue=hue, saturation=sat, brightness=brightness, kelvin=kelvin)
