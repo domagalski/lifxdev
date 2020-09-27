@@ -2,45 +2,12 @@
 
 import logging
 import unittest
-from typing import Optional, Tuple
 
 import coloredlogs
 
 from lifxdev.messages import packet
 from lifxdev.messages import light_messages
-
-
-class MockSock:
-    """Mock the socket send/recv functions"""
-
-    def __init__(self):
-        self._last_bytes = b""
-        self._last_addr = ("", 0)
-        self._blocking = True
-        self._timeout = None
-
-    def sendto(self, message_bytes: bytes, addr: Tuple[str, int]):
-        self._last_addr = addr
-        self._last_bytes = message_bytes
-        return len(message_bytes)
-
-    def recvfrom(self, buffer_size) -> Tuple[bytes, Tuple[str, int]]:
-        if self._blocking:
-            return (self._last_bytes, self._last_addr)
-        else:
-            raise BlockingIOError
-
-    def getblocking(self) -> bool:
-        return self._blocking
-
-    def gettimeout(self) -> Optional[float]:
-        return self._timeout
-
-    def setblocking(self, state: bool):
-        self._blocking = state
-
-    def settimeout(self, timeout: Optional[float]):
-        self._timeout = timeout
+from lifxdev.messages import mock_socket
 
 
 class PacketTest(unittest.TestCase):
@@ -120,7 +87,7 @@ class PacketTest(unittest.TestCase):
     def test_packet(self):
         hsbk = packet.Hsbk(hue=21845, saturation=65535, brightness=65535, kelvin=3500)
         green = light_messages.SetColor(color=hsbk, duration=1024)
-        comm = packet.UdpSender(ip="127.0.0.1", port=56700, comm=MockSock())
+        comm = packet.UdpSender(ip="127.0.0.1", port=56700, comm=mock_socket.MockSocket())
         packet_comm = packet.PacketComm(comm)
 
         payload_bytes, _ = packet_comm.get_bytes_and_source(
@@ -193,17 +160,17 @@ class PacketTest(unittest.TestCase):
             mac_addr="00:00:00:00:00:00",
             res_required=True,
             ack_required=False,
-            sequence=123,
-            source=1234,
+            # sequence=123,
+            # source=1234,
             verbose=True,
         )
 
         self.assertEqual(len(responses), 1)
         response = responses.pop()
         self.assertEqual(response.addr, ("127.0.0.1", packet.LIFX_PORT))
-        self.assertEqual(response.frame["source"], 1234)
-        self.assertEqual(response.frame_address["sequence"], 123)
-        self.assertEqual(response.protocol_header["type"], green.type)
+        # self.assertEqual(response.frame["source"], 1234)
+        # self.assertEqual(response.frame_address["sequence"], 123)
+        self.assertEqual(response.protocol_header["type"], light_messages.State.type)
         self.assertEqual(response.payload["color"], hsbk)
 
 
