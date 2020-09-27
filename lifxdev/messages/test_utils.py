@@ -103,7 +103,6 @@ class MockSocket:
             state_payload["power"] = payload["level"]
             self._responses["State"], self._source = packet.PacketComm.get_bytes_and_source(
                 payload=state_payload,
-                res_required=True,
                 mac_addr=self._mac_addr,
                 source=self._source,
                 sequence=self._sequence,
@@ -119,9 +118,10 @@ class MockSocket:
             intersection = response_registers & payload_registers
             for name in intersection:
                 response_payload[name] = payload[name]
+            if response_name == "StateExtendedColorZones":
+                response_payload["count"] = response_payload["colors_count"]
             self._responses[response_name], self._source = packet.PacketComm.get_bytes_and_source(
                 payload=response_payload,
-                res_required=True,
                 mac_addr=self._mac_addr,
                 source=self._source,
                 sequence=self._sequence,

@@ -9,7 +9,7 @@ from lifxdev.devices import light
 from lifxdev.messages import test_utils
 
 
-class DeviceTest(unittest.TestCase):
+class LightTest(unittest.TestCase):
     def setUp(self):
         self.lifx = light.LifxLight.init_from_ip_addr(
             "127.0.0.1",
@@ -30,7 +30,7 @@ class DeviceTest(unittest.TestCase):
         self.assertAlmostEqual(ir_level, 1.0)
 
     def test_set_power(self):
-        self.lifx.set_power(True, 0)
+        self.assertIsNotNone(self.lifx.set_power(True, 0))
         self.assertTrue(self.lifx.get_power())
 
 

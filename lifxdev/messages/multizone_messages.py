@@ -6,7 +6,7 @@ https://lan.developer.lifx.com/docs/multizone-messages
 """
 
 import enum
-from typing import Any
+from typing import Any, Optional
 
 from lifxdev.messages import packet
 
@@ -27,7 +27,7 @@ class SetExtendedColorZones(packet.LifxMessage):
         ("colors", packet.Hsbk(), 82),
     ]
 
-    def set_value(self, name: str, value: Any):
+    def set_value(self, name: str, value: Any, index: Optional[int] = None):
         """The apply register must be an ApplicationRequest type"""
         if name.lower() == "apply":
             if isinstance(value, str):
@@ -37,7 +37,7 @@ class SetExtendedColorZones(packet.LifxMessage):
             elif isinstance(value, int):
                 if value not in [ar.value for ar in ApplicationRequest]:
                     raise ValueError(f"Invalid application request: {value}")
-        super().set_value(name, value)
+        super().set_value(name, value, index)
 
 
 @packet.set_message_type(511)

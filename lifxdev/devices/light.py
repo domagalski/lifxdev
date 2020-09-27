@@ -44,6 +44,8 @@ class Hsbk(NamedTuple):
 
 
 class LifxLight(device.LifxDevice):
+    """Light control"""
+
     def get_color(self) -> Hsbk:
         """Get the color of the device
 
@@ -126,4 +128,6 @@ class LifxLight(device.LifxDevice):
             If ack_required, get an acknowledgement LIFX response tuple.
         """
         power = light_messages.SetPower(level=state, duration=int(duration_s * 1e3))
-        return self.send_recv(power, ack_required=ack_required)
+        response = self.send_recv(power, ack_required=ack_required)
+        if response:
+            return response[0]
