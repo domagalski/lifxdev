@@ -7,7 +7,7 @@ import coloredlogs
 
 from lifxdev.messages import packet
 from lifxdev.messages import light_messages
-from lifxdev.messages import mock_socket
+from lifxdev.messages import test_utils
 
 
 class PacketTest(unittest.TestCase):
@@ -87,7 +87,9 @@ class PacketTest(unittest.TestCase):
     def test_packet(self):
         hsbk = packet.Hsbk(hue=21845, saturation=65535, brightness=65535, kelvin=3500)
         green = light_messages.SetColor(color=hsbk, duration=1024)
-        comm = packet.UdpSender(ip="127.0.0.1", port=56700, comm=mock_socket.MockSocket())
+        comm = packet.UdpSender(
+            ip="127.0.0.1", port=56700, comm=test_utils.MockSocket(), nonblock_delay=0
+        )
         packet_comm = packet.PacketComm(comm)
 
         payload_bytes, _ = packet_comm.get_bytes_and_source(
@@ -160,16 +162,16 @@ class PacketTest(unittest.TestCase):
             mac_addr="00:00:00:00:00:00",
             res_required=True,
             ack_required=False,
-            # sequence=123,
-            # source=1234,
+            sequence=123,
+            source=1234,
             verbose=True,
         )
 
         self.assertEqual(len(responses), 1)
         response = responses.pop()
         self.assertEqual(response.addr, ("127.0.0.1", packet.LIFX_PORT))
-        # self.assertEqual(response.frame["source"], 1234)
-        # self.assertEqual(response.frame_address["sequence"], 123)
+        self.assertEqual(response.frame["source"], 1234)
+        self.assertEqual(response.frame_address["sequence"], 123)
         self.assertEqual(response.protocol_header["type"], light_messages.State.type)
         self.assertEqual(response.payload["color"], hsbk)
 

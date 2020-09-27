@@ -2,6 +2,7 @@
 
 """Create a mock socket that can be used for testing/simulating"""
 
+import enum
 from typing import Dict, Optional, Tuple
 
 from lifxdev.messages import packet
@@ -14,22 +15,55 @@ from lifxdev.messages import tile_messages  # noqa: F401
 from lifxdev.messages import firmware_effects  # noqa: F401
 
 
+# Take from the product info page:
+# https://lan.developer.lifx.com/v2.0/docs/lifx-products
+class Product(enum.Enum):
+    NONE = (0, 0)
+    LIGHT = (1, 27)
+    MZ = (1, 38)
+    TILE = (1, 55)
+
+
 class MockSocket:
     """Mock the socket send/recv functions"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        label: str = "LIFX mock",
+        mac_addr: Optional[str] = None,
+        product=Product.NONE,
+    ):
+        self._label = label
+        self._mac_addr = mac_addr
         self._response_bytes = b""
         self._last_addr = ("", 0)
         self._blocking = True
         self._timeout = None
+        self._sequence = None
         self._responses: Dict[str, bytes] = {}
         for msg_num in sorted(packet._MESSAGE_TYPES.keys()):
-            klass = packet._MESSAGE_TYPES[msg_num]
-            name = klass.name
-            self._responses[name], _ = packet.PacketComm.get_bytes_and_source(
-                payload=klass(),
+            message = packet._MESSAGE_TYPES[msg_num]()
+            name = message.name
+
+            # Set up some defaults
+            if name in ["State", "StateLabel"]:
+                message["label"] = self._label
+            elif name == "StateService":
+                message["service"] = 1
+                message["port"] = packet.LIFX_PORT
+            elif name == "StateVersion":
+                message["vendor"] = product.value[0]
+                message["product"] = product.value[1]
+
+            self._responses[name], self._source = packet.PacketComm.get_bytes_and_source(
+                payload=message,
+                mac_addr=self._mac_addr,
                 res_required=True,
             )
+
+    def setsockopt(self, *args, **kwargs):
+        """Ignore setsockopt calls"""
+        pass
 
     def getblocking(self) -> bool:
         """Return the blocking status"""
@@ -53,6 +87,8 @@ class MockSocket:
 
         full_packet = packet.PacketComm.decode_bytes(message_bytes, addr)
         payload = full_packet.payload
+        self._source = full_packet.frame["source"]
+        self._sequence = full_packet.frame_address["sequence"]
 
         # usually, replacing get/set with state, but there are exceptions
         response_name = payload.name.replace("Get", "State").replace("Set", "State")
@@ -65,9 +101,12 @@ class MockSocket:
         if payload.name == "SetPower":
             state_payload = packet.PacketComm.decode_bytes(self._responses["State"], addr).payload
             state_payload["power"] = payload["level"]
-            self._responses["State"], _ = packet.PacketComm.get_bytes_and_source(
+            self._responses["State"], self._source = packet.PacketComm.get_bytes_and_source(
                 payload=state_payload,
                 res_required=True,
+                mac_addr=self._mac_addr,
+                source=self._source,
+                sequence=self._sequence,
             )
 
         # Craft a response when setting light state.
@@ -80,9 +119,12 @@ class MockSocket:
             intersection = response_registers & payload_registers
             for name in intersection:
                 response_payload[name] = payload[name]
-            self._responses[response_name], _ = packet.PacketComm.get_bytes_and_source(
+            self._responses[response_name], self._source = packet.PacketComm.get_bytes_and_source(
                 payload=response_payload,
                 res_required=True,
+                mac_addr=self._mac_addr,
+                source=self._source,
+                sequence=self._sequence,
             )
 
         # Set the response. If an acknowledgement as been requested, use those bytes.

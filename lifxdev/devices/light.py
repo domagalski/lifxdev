@@ -45,7 +45,11 @@ class Hsbk(NamedTuple):
 
 class LifxLight(device.LifxDevice):
     def get_color(self) -> Hsbk:
-        """Returns the HSBK of the device."""
+        """Get the color of the device
+
+        Returns:
+            The human-readable HSBK of the light.
+        """
         response = self.send_recv(light_messages.Get(), res_required=True)
         return Hsbk.from_packet(response[0].payload["color"])
 
@@ -56,22 +60,48 @@ class LifxLight(device.LifxDevice):
         return ir_state["brightness"] / ir_state.get_max("brightness")
 
     def get_power(self) -> bool:
-        """Return True if the light is powered on."""
+        """Get the power state of the light.
+
+        Returns:
+            True if the light is powered on. False if off.
+        """
         response = self.send_recv(light_messages.GetPower(), res_required=True)
         return response[0].payload["level"]
 
     def set_color(
-        self, hsbk: Hsbk, duration_s: float, *, ack_required: bool = True
+        self,
+        hsbk: Hsbk,
+        duration_s: float,
+        *,
+        ack_required: bool = True,
     ) -> Optional[Hsbk]:
-        """Set the color according to a human-readable HSBK tuple"""
+        """Set the color of the light.
+
+        Args:
+            hsbk: (Hsbk) Human-readable HSBK tuple.
+            duration_s: (float) The time in seconds to make the color transition.
+            ack_required: (bool) True gets an acknowledgement from the light.
+
+        Returns:
+            If ack_required, then get a color tuple as a response, else None.
+        """
         set_color_msg = light_messages.SetColor(
-            color=hsbk.to_packet(), duration=int(duration_s * 1e3)
+            color=hsbk.to_packet(),
+            duration=int(duration_s * 1e3),
         )
         if self.send_recv(set_color_msg, ack_required=ack_required):
             return self.get_color()
 
     def set_infrared(self, brightness: float, *, ack_required: bool = True) -> Optional[float]:
-        """Set infrared level on the bulb with 1.0 being the max"""
+        """Set the infrared level on the bulb.
+
+        Args:
+            brightness: (float) IR brightness level. 1.0 is the maximum.
+            ack_required: (bool) True gets an acknowledgement from the light.
+
+        Returns:
+            If ack_required, then return the IR level response.
+        """
         ir = light_messages.SetInfrared()
         max_brightness = ir.get_max("brightness")
         ir["brightness"] = int(brightness * max_brightness)
@@ -79,8 +109,21 @@ class LifxLight(device.LifxDevice):
             return self.get_infrared()
 
     def set_power(
-        self, state: bool, duration_s: float, *, ack_required: bool = True
+        self,
+        state: bool,
+        duration_s: float,
+        *,
+        ack_required: bool = True,
     ) -> Optional[packet.LifxResponse]:
-        """Set power state on the bulb"""
+        """Set power state on the bulb.
+
+        Args:
+            state: (bool) True powers on the light. False powers it off.
+            duration_s: (float) The time in seconds to make the color transition.
+            ack_required: (bool) True gets an acknowledgement from the light.
+
+        Returns:
+            If ack_required, get an acknowledgement LIFX response tuple.
+        """
         power = light_messages.SetPower(level=state, duration=int(duration_s * 1e3))
         return self.send_recv(power, ack_required=ack_required)

@@ -22,8 +22,10 @@ class LifxDevice:
         port: int = packet.LIFX_PORT,
         buffer_size: int = packet.BUFFER_SIZE,
         timeout: Optional[float] = None,
+        nonblock_delay: float = packet.NONBOCK_DELAY,
         broadcast: bool = False,
         verbose: bool = False,
+        comm: Optional[socket.socket] = None,
     ) -> "LifxDevice":
         """Create a LIFX device from an IP address
 
@@ -35,13 +37,20 @@ class LifxDevice:
             timeout: (float) UDP response timeout.
             broadcast: (bool) Whether the IP address is a broadcast address.
             verbose: (bool) Use logging.info instead of logging.debug.
+            comm: (socket) Optionally override the socket used for the device class.
         """
-        comm = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        comm = comm or socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         comm.settimeout(timeout)
         if broadcast:
             comm.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             comm.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        udp_sender = packet.UdpSender(mac_addr=mac_addr, ip=ip, buffer_size=buffer_size, comm=comm)
+        udp_sender = packet.UdpSender(
+            mac_addr=mac_addr,
+            ip=ip,
+            comm=comm,
+            buffer_size=buffer_size,
+            nonblock_delay=nonblock_delay,
+        )
         return cls(udp_sender, verbose)
 
     def send_recv(

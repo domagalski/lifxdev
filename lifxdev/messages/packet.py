@@ -14,6 +14,7 @@ from lifxdev.util import util
 
 BUFFER_SIZE = 4096
 LIFX_PORT = 56700
+NONBOCK_DELAY = 0.1
 REGISTER_T = List[Tuple[str, Optional[int], str]]
 
 
@@ -610,6 +611,9 @@ class UdpSender(NamedTuple):
     # Buffer size for receiving UDP messages
     buffer_size: int = BUFFER_SIZE
 
+    # Wait this long before getting messages in nonblocking mode
+    nonblock_delay: float = NONBOCK_DELAY
+
 
 class PacketComm:
     """Communicate packets with LIFX devices"""
@@ -756,7 +760,7 @@ class PacketComm:
                 if not (first_iter or has_timeout):
                     # Sleep a small amount of time to wait for responses.
                     if comm.getblocking():
-                        time.sleep(0.1)
+                        time.sleep(self._comm.nonblock_delay)
                     comm.setblocking(False)
 
                 # Get responses
