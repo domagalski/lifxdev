@@ -19,11 +19,11 @@ from lifxdev.messages import firmware_effects  # noqa: F401
 # Take from the product info page:
 # https://lan.developer.lifx.com/v2.0/docs/lifx-products
 class Product(enum.Enum):
-    NONE = (0, 0)
-    LIGHT = (1, 27)
-    IR = (1, 29)
-    MZ = (1, 38)
-    TILE = (1, 55)
+    NONE = 0
+    LIGHT = 27
+    IR = 29
+    MZ = 38
+    TILE = 55
 
 
 class MockSocket:
@@ -34,7 +34,7 @@ class MockSocket:
         *args,
         label: str = "LIFX mock",
         mac_addr: Optional[str] = None,
-        product=Product.NONE,
+        product: Product = Product.NONE,
         **kwargs,
     ):
         self._label = label
@@ -43,7 +43,7 @@ class MockSocket:
         self._last_addr = ("", 0)
         self._blocking = True
         self._timeout = None
-        self._sequence = None
+        self._sequence = 0
         self._first_response_query = False
         self._responses: Dict[str, bytes] = {}
         for msg_num in sorted(packet._MESSAGE_TYPES.keys()):
@@ -63,14 +63,37 @@ class MockSocket:
                 message["service"] = 1
                 message["port"] = packet.LIFX_PORT
             elif name == "StateVersion":
-                message["vendor"] = product.value[0]
-                message["product"] = product.value[1]
+                message["vendor"] = 1
+                message["product"] = product.value
 
             self._responses[name], self._source = packet.PacketComm.get_bytes_and_source(
                 payload=message,
                 mac_addr=self._mac_addr,
                 res_required=True,
             )
+
+    def set_label(self, label: str, addr: Tuple[str, int] = ("127.0.0.1", packet.LIFX_PORT)):
+        """Set the label returned in messages"""
+        self.update_payload("State", addr, label=label)
+        self.update_payload("StateLabel", addr, label=label)
+
+    def set_product(
+        self, product: Product, addr: Tuple[str, int] = ("127.0.0.1", packet.LIFX_PORT)
+    ):
+        """Set the product returned in messages"""
+        self.update_payload("StateVersion", addr, product=product.value)
+
+    def update_payload(self, register_name: str, addr: Tuple[str, int], **kwargs):
+        """Update a payload's bytes registers"""
+        payload = packet.PacketComm.decode_bytes(self._responses[register_name], addr).payload
+        for key, value in kwargs.items():
+            payload[key] = value
+        self._responses[register_name], self._source = packet.PacketComm.get_bytes_and_source(
+            payload=payload,
+            mac_addr=self._mac_addr,
+            source=self._source,
+            sequence=self._sequence,
+        )
 
     def setsockopt(self, *args, **kwargs):
         """Ignore setsockopt calls"""
@@ -110,14 +133,7 @@ class MockSocket:
 
         # Update the color message when setting the power level
         if payload.name == "SetPower":
-            state_payload = packet.PacketComm.decode_bytes(self._responses["State"], addr).payload
-            state_payload["power"] = payload["level"]
-            self._responses["State"], self._source = packet.PacketComm.get_bytes_and_source(
-                payload=state_payload,
-                mac_addr=self._mac_addr,
-                source=self._source,
-                sequence=self._sequence,
-            )
+            self.update_payload("State", addr, power=payload["level"])
 
         # Craft a response when setting light state.
         if payload.name.startswith("Set") or payload.name == "EchoRequest":

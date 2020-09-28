@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
+import collections
+import enum
+import functools
 import logging
 import pathlib
 import socket
-from typing import Any, Dict, List, NamedTuple, Optional
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 import yaml
 
@@ -15,12 +18,100 @@ from lifxdev.messages import packet
 from lifxdev.messages import device_messages
 
 
+CONFIG_PATH = pathlib.Path.home() / ".lifx" / "devices.yaml"
+
+
+class DeviceConfigError(Exception):
+    pass
+
+
 class ProductInfo(NamedTuple):
     ip: str
     port: int
     label: str
     product_name: str
     device: light.LifxLight
+
+
+class DeviceGroup:
+    """Class for managing groups of devices"""
+
+    def __init__(self, devices_and_groups: Dict[str, Any]):
+        """Create a device group.
+
+        Args:
+            devices_and_groups: (dict) Dictionary containing devices and subgroups.
+        """
+        self._devices_and_groups = devices_and_groups
+
+        # Get easy access to all devices in the device group
+        self._all_devices: Dict[str, Any] = {}
+        self._all_groups: Dict[str, Any] = {}
+        for name, device_or_group in self._devices_and_groups.items():
+            if isinstance(device_or_group, type(self)):
+                self._all_groups[name] = device_or_group
+                for sub_name, sub_device in device_or_group.get_all_devices().items():
+                    self._all_devices[sub_name] = sub_device
+                for sub_name, sub_group in device_or_group.get_all_groups().items():
+                    self._all_groups[sub_name] = sub_group
+            else:
+                self._all_devices[name] = device_or_group
+
+        # Organizing devices by type is useful for setting colormaps
+        self._devices_by_type = collections.defaultdict(list)
+        for device_or_group in self._devices_and_groups.values():
+            device_type = DeviceType[_DEVICE_TYPES_R[type(device_or_group).__name__]]
+            self._devices_by_type[device_type].append(device_or_group)
+
+    def get_all_devices(self) -> Dict[str, Any]:
+        return self._all_devices
+
+    def get_all_groups(self) -> Dict[str, "DeviceGroup"]:
+        return self._all_groups
+
+    def get_device(self, name: str) -> Any:
+        return self._all_devices[name]
+
+    def get_group(self, name: str) -> "DeviceGroup":
+        return self._all_groups[name]
+
+    def has_device(self, name: str) -> bool:
+        return name in self._all_devices
+
+    def has_group(self, name: str) -> bool:
+        return name in self._all_groups
+
+
+# Convienence for validating type names in config files
+class DeviceType(enum.Enum):
+    group = 0
+    light = 1
+    infrared = 2
+    multizone = 3
+    tile = 4
+
+
+# Mapping and reverse mapping from config file type name to class
+_DEVICE_TYPES = {
+    "group": DeviceGroup,
+    "light": light.LifxLight,
+    "infrared": light.LifxInfraredLight,
+    "multizone": multizone.LifxMultiZone,
+    "tile": tile.LifxTile,
+}
+_DEVICE_TYPES_R = {value.__name__: key for key, value in _DEVICE_TYPES.items()}
+
+
+def _require_config_loaded(function: Callable) -> Callable:
+    """Require configuration to be loaded before calling a class method"""
+
+    @functools.wraps(function)
+    def _run(self, *args, **kwargs) -> Any:
+        if not self._root_device_group:
+            raise DeviceConfigError("Device config not loaded.")
+        return function(self, *args, **kwargs)
+
+    return _run
 
 
 class DeviceManager(device.LifxDevice):
@@ -37,6 +128,7 @@ class DeviceManager(device.LifxDevice):
         nonblock_delay: float = packet.NONBOCK_DELAY,
         verbose: bool = False,
         comm: Optional[socket.socket] = None,
+        config_path: Union[str, pathlib.Path] = CONFIG_PATH,
     ):
         """Create a LIFX device manager.
 
@@ -46,10 +138,10 @@ class DeviceManager(device.LifxDevice):
             nonblock_delay: (float) Delay time to wait for messages when nonblocking.
             verbose: (bool) Use logging.info instead of logging.debug.
             comm: (socket) Optionally override the socket used for the device class.
+            config_path: (str) Path to the device config.
         """
         super().__init__(
             ip="255.255.255.255",
-            broadcast=True,
             buffer_size=buffer_size,
             timeout=timeout,
             nonblock_delay=nonblock_delay,
@@ -69,42 +161,40 @@ class DeviceManager(device.LifxDevice):
         for product in product_list:
             self._products[product["pid"]] = product
 
-    def discover(
-        self,
-        num_retries: int = 10,
-        device_comm: Optional[socket.socket] = None,
-    ) -> List[ProductInfo]:
+        # Load config sets the self._root_device_group variable
+        self._root_device_group: Optional[DeviceGroup] = None
+        if config_path.exists():
+            self.load_config(config_path)
+
+    def discover(self, num_retries: int = 10) -> List[ProductInfo]:
         """Discover devices on the network
 
         Args:
             num_retries: (int) Number of GetService calls made.
-            timeout:
         """
 
         logging.info("Scanning for LIFX devices.")
         state_service_dict: Dict[str, packet.LifxResponse] = {}
         # Disabling the timeout speeds up discovery
-        self.set_timeout(None)
+        self._set_timeout(None)
         for ii in range(num_retries):
             if ii + 1 == num_retries:
-                # Use a timeout on the last get_devices to ensure no lingering packets
-                self.set_timeout(self._timeout)
-            search_responses = self.get_devices()
+                # Use a timeout on the last get_devices_on_network
+                # to ensure no lingering packets
+                self._set_timeout(self._timeout)
+            search_responses = self.get_devices_on_network()
             for response in search_responses:
                 ip = response.addr[0]
                 state_service_dict[ip] = response
 
-        self.set_timeout(None)
+        self._set_timeout(None)
         logging.info("Getting device info for discovered devices.")
-        # Device manager has different socket options than unicast devices
-        device_comm = device_comm or socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        device_comm.settimeout(self._timeout)
-        device_list: List[ProductInfo] = []
+        device_dict: Dict[str, ProductInfo] = {}
         for ip, state_service in state_service_dict.items():
             port = state_service.payload["port"]
             try:
-                label = self.get_label(ip, port=port, comm=device_comm)
-                product_dict = self.get_product_info(ip, port=port, comm=device_comm)
+                label = self.get_label(ip, port=port)
+                product_dict = self.get_product_info(ip, port=port)
             except packet.NoResponsesError as e:
                 logging.error(e)
                 continue
@@ -120,23 +210,17 @@ class DeviceManager(device.LifxDevice):
                 device=device_klass(
                     ip,
                     port=port,
-                    comm=device_comm,
+                    comm=self._get_socket(),
                     timeout=self._timeout,
                     verbose=self._verbose,
                 ),
             )
-            device_list.append(product_info)
+            device_dict[label] = product_info
 
-        return device_list
+        return device_dict
 
-    def get_devices(self) -> List[packet.LifxResponse]:
+    def get_devices_on_network(self) -> List[packet.LifxResponse]:
         """Get device info from one or more devices.
-
-        Args:
-            ip: (str) Override the IP address.
-            port: (int) Override the UDP port.
-            mac_addr: (str) Override the MAC address.
-            comm: (socket) Override the UDP socket.
 
         Returns:
             A list of StateService responses.
@@ -149,7 +233,6 @@ class DeviceManager(device.LifxDevice):
         *,
         port: int = packet.LIFX_PORT,
         mac_addr: Optional[str] = None,
-        comm: Optional[socket.socket] = None,
         verbose: bool = False,
     ) -> str:
         """Get the label of a device
@@ -158,7 +241,6 @@ class DeviceManager(device.LifxDevice):
             ip: (str) Override the IP address.
             port: (int) Override the UDP port.
             mac_addr: (str) Override the MAC address.
-            comm: (socket) Override the UDP socket.
             verbose: (bool) Use logging.info instead of logging.debug.
         """
         return (
@@ -168,7 +250,6 @@ class DeviceManager(device.LifxDevice):
                 ip=ip,
                 port=port,
                 mac_addr=mac_addr,
-                comm=comm,
                 verbose=verbose,
             )
             .pop()
@@ -181,7 +262,6 @@ class DeviceManager(device.LifxDevice):
         *,
         port: int = packet.LIFX_PORT,
         mac_addr: Optional[int] = None,
-        comm: Optional[socket.socket] = None,
         verbose: bool = False,
     ) -> Dict[str, Any]:
         """Get the Python class needed to control a LIFX product.
@@ -190,7 +270,6 @@ class DeviceManager(device.LifxDevice):
             ip: (str) Override the IP address.
             port: (int) Override the UDP port.
             mac_addr: (str) Override the MAC address.
-            comm: (socket) Override the UDP socket.
             verbose: (bool) Use logging.info instead of logging.debug.
         """
         product_id = (
@@ -200,7 +279,6 @@ class DeviceManager(device.LifxDevice):
                 ip=ip,
                 port=port,
                 mac_addr=mac_addr,
-                comm=comm,
                 verbose=verbose,
             )
             .pop()
@@ -222,6 +300,71 @@ class DeviceManager(device.LifxDevice):
         product["class"] = klass
         return product
 
+    def load_config(self, config_path: Union[str, pathlib.Path] = CONFIG_PATH) -> DeviceGroup:
+        """Load a config and populate device groups.
+
+        Args:
+            config_path: (str) Path to the device config.
+        """
+        config_path = pathlib.Path(config_path)
+        with config_path.open() as f:
+            config_dict = yaml.safe_load(f)
+
+        self._root_device_group = self._load_device_group(config_dict)
+
+    def _load_device_group(self, config_dict: Dict[str, Any]) -> DeviceGroup:
+        """Recursively load a device group from a config dict."""
+        devices_and_groups: Dict[str, Any] = {}
+        for name, conf in config_dict.items():
+            # Validate the type name
+            type_name = conf.get("type")
+            if not type_name:
+                raise DeviceConfigError(f"Device/group {name!r} missing 'type' field.")
+            try:
+                device_type = DeviceType[type_name]
+            except KeyError:
+                raise DeviceConfigError(f"Invalid type for device {name!r}: {type_name}")
+
+            # Check that the IP address is present
+            ip = conf.get("ip")
+            if not (ip or device_type == DeviceType.group):
+                raise DeviceConfigError(f"Device {name!r} has no IP address.")
+
+            # Recurse through group listing
+            if device_type == DeviceType.group:
+                group_devices = conf.get("devices")
+                devices_and_groups[name] = self._load_device_group(group_devices)
+
+            else:
+                mac = conf.get("mac")
+                port = conf.get("port", packet.LIFX_PORT)
+                klass = _DEVICE_TYPES[device_type.name]
+                devices_and_groups[name] = klass(
+                    ip, port=port, mac_addr=mac, comm=self._get_socket()
+                )
+
+        return DeviceGroup(devices_and_groups)
+
+    @_require_config_loaded
+    def get_device(self, name: str) -> Any:
+        """Get a device by its label."""
+        return self._root_device_group.get_device(name)
+
+    @_require_config_loaded
+    def get_group(self, name: str) -> DeviceGroup:
+        """Get a group by its label."""
+        return self._root_device_group.get_group(name)
+
+    @_require_config_loaded
+    def has_device(self, name: str) -> bool:
+        """Check if a device exists."""
+        return self._root_device_group.has_device(name)
+
+    @_require_config_loaded
+    def has_group(self, name: str) -> bool:
+        """Check if a group exists."""
+        return self._root_device_group.has_group(name)
+
 
 if __name__ == "__main__":
     import coloredlogs
@@ -230,7 +373,7 @@ if __name__ == "__main__":
 
     device_manager = DeviceManager()
     devices = device_manager.discover()
-    for device_info in sorted(devices, key=lambda d: d.ip):
+    for device_info in sorted(devices.values(), key=lambda d: d.ip):
         product = device_info.product_name
         ip = device_info.ip
         label = device_info.label

@@ -13,12 +13,12 @@ class LifxDevice:
     def __init__(
         self,
         ip: str,
+        *,
         mac_addr: Optional[str] = None,
         port: int = packet.LIFX_PORT,
         buffer_size: int = packet.BUFFER_SIZE,
         timeout: Optional[float] = packet.TIMEOUT,
         nonblock_delay: float = packet.NONBOCK_DELAY,
-        broadcast: bool = False,
         verbose: bool = False,
         comm: Optional[socket.socket] = None,
     ):
@@ -37,9 +37,7 @@ class LifxDevice:
         """
         comm = comm or socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         comm.settimeout(timeout)
-        if broadcast:
-            comm.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            comm.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        comm.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         udp_sender = packet.UdpSender(
             mac_addr=mac_addr,
             ip=ip,
@@ -50,7 +48,11 @@ class LifxDevice:
         self._comm = packet.PacketComm(udp_sender, verbose)
         self._verbose = verbose
 
-    def set_timeout(self, timeout: Optional[float]) -> None:
+    def _get_socket(self) -> socket.socket:
+        """Return the socket object for UDP communication"""
+        return self._comm.get_socket()
+
+    def _set_timeout(self, timeout: Optional[float]) -> None:
         """Set the timeout of the UDP socket"""
         self._comm.set_timeout(timeout)
 
