@@ -2,6 +2,7 @@
 
 from typing import List, Optional
 
+from lifxdev.colors import color
 from lifxdev.devices import light
 from lifxdev.messages import multizone_messages
 from lifxdev.messages import packet
@@ -10,7 +11,7 @@ from lifxdev.messages import packet
 class LifxMultiZone(light.LifxLight):
     """MultiZone device (beam, strip) control"""
 
-    def get_multizone(self) -> List[light.Hsbk]:
+    def get_multizone(self) -> List[color.Hsbk]:
         """Get a list the colors on the MultiZone.
 
         Returns:
@@ -20,11 +21,11 @@ class LifxMultiZone(light.LifxLight):
         payload = response[0].payload
         count = payload["count"]
         colors = payload["colors"][:count]
-        return [light.Hsbk.from_packet(cc) for cc in colors]
+        return [color.Hsbk.from_packet(cc) for cc in colors]
 
     def set_multizone(
         self,
-        colors: List[light.Hsbk],
+        colors: List[color.Hsbk],
         duration_s: float,
         *,
         index: int = 0,
@@ -43,6 +44,6 @@ class LifxMultiZone(light.LifxLight):
         set_colors["duration"] = int(duration_s * 1000)
         set_colors["index"] = index
         set_colors["colors_count"] = len(colors)
-        for ii, color in enumerate(colors):
-            set_colors.set_value("colors", color.to_packet(), index + ii)
+        for ii, hsbk in enumerate(colors):
+            set_colors.set_value("colors", hsbk.to_packet(), index + ii)
         return self.send_msg(set_colors, ack_required=ack_required)

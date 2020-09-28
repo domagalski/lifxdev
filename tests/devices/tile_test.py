@@ -5,7 +5,7 @@ import unittest
 
 import coloredlogs
 
-from lifxdev.devices import light
+from lifxdev.colors import color
 from lifxdev.devices import tile
 from lifxdev.messages import packet
 from lifxdev.messages import test_utils
@@ -27,7 +27,7 @@ class MultiZoneTest(unittest.TestCase):
 
     def test_set_color(self):
         colors = [
-            light.Hsbk(hue=5 * ii, saturation=1, brightness=1, kelvin=5500)
+            color.Hsbk(hue=5 * ii, saturation=1, brightness=1, kelvin=5500)
             for ii in range(tile.TILE_WIDTH ** 2)
         ]
         self.assertIsInstance(self.lifx.set_tile_colors(0, colors, 0), packet.LifxResponse)

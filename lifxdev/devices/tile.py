@@ -2,6 +2,7 @@
 
 from typing import List, Optional
 
+from lifxdev.colors import color
 from lifxdev.devices import light
 from lifxdev.messages import tile_messages
 from lifxdev.messages import packet
@@ -17,7 +18,7 @@ class LifxTile(light.LifxLight):
         response = self.send_recv(tile_messages.GetDeviceChain(), res_required=True)
         return response[0]
 
-    def get_tile_colors(self, tile_index: int, *, length: int = 1) -> List[List[light.Hsbk]]:
+    def get_tile_colors(self, tile_index: int, *, length: int = 1) -> List[List[color.Hsbk]]:
         """Get the color state for individual tiles.
 
         Args:
@@ -31,15 +32,15 @@ class LifxTile(light.LifxLight):
         get_request["tile_index"] = tile_index
         get_request["length"] = length
         responses = self.send_recv(get_request, res_required=True, retry_recv=length > 1)
-        matrix_list: List[List[light.Hsbk]] = []
+        matrix_list: List[List[color.Hsbk]] = []
         for state in responses:
-            matrix_list.append([light.Hsbk.from_packet(hsbk) for hsbk in state.payload["colors"]])
+            matrix_list.append([color.Hsbk.from_packet(hsbk) for hsbk in state.payload["colors"]])
         return matrix_list
 
     def set_tile_colors(
         self,
         tile_index: int,
-        colors: List[light.Hsbk],
+        colors: List[color.Hsbk],
         duration_s: float,
         *,
         length: int = 1,

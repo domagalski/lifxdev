@@ -5,6 +5,7 @@ import unittest
 
 import coloredlogs
 
+from lifxdev.colors import color
 from lifxdev.devices import light
 from lifxdev.messages import packet
 from lifxdev.messages import test_utils
@@ -18,35 +19,8 @@ class LightTest(unittest.TestCase):
             comm=test_utils.MockSocket(product=test_utils.Product.LIGHT),
         )
 
-    def test_rgba2hsbk(self):
-        kelvin = 5500
-
-        # Red
-        rgba = light.Rgba(red=1, green=0, blue=0, norm=1)
-        hsbk = light.Hsbk(hue=0, saturation=1, brightness=1, kelvin=kelvin)
-        self._compare_colorconv(rgba, hsbk)
-
-        # Green
-        rgba = light.Rgba(red=0, green=1, blue=0, norm=1)
-        hsbk = light.Hsbk(hue=120, saturation=1, brightness=1, kelvin=kelvin)
-        self._compare_colorconv(rgba, hsbk)
-
-        # Blue
-        rgba = light.Rgba(red=0, green=0, blue=1, norm=1)
-        hsbk = light.Hsbk(hue=240, saturation=1, brightness=1, kelvin=kelvin)
-        self._compare_colorconv(rgba, hsbk)
-
-        # White
-        rgba = light.Rgba(red=1, green=1, blue=1, norm=1)
-        hsbk = light.Hsbk(hue=0, saturation=0, brightness=1, kelvin=kelvin)
-        self._compare_colorconv(rgba, hsbk)
-
-    def _compare_colorconv(self, rgba: light.Rgba, hsbk: light.Hsbk):
-        converted = light.rgba2hsbk(rgba, hsbk.kelvin)
-        self.assertEqual(converted.hue, hsbk.hue)
-
     def test_set_color(self):
-        hsbk = light.Hsbk(hue=300, saturation=1, brightness=1, kelvin=5500)
+        hsbk = color.Hsbk(hue=300, saturation=1, brightness=1, kelvin=5500)
         self.assertIsNotNone(self.lifx.set_color(hsbk, 0))
         response = self.lifx.get_color()
         self.assertAlmostEqual(round(hsbk.hue), round(response.hue))
