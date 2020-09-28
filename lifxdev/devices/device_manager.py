@@ -3,7 +3,7 @@
 import logging
 import pathlib
 import socket
-from typing import Any, Dict, List, NamedTuple, Optional, Type
+from typing import Any, Dict, List, NamedTuple, Optional
 
 import yaml
 
@@ -33,7 +33,7 @@ class DeviceManager(device.LifxDevice):
         self,
         *,
         buffer_size: int = packet.BUFFER_SIZE,
-        timeout: Optional[float] = None,
+        timeout: Optional[float] = packet.TIMEOUT,
         nonblock_delay: float = packet.NONBOCK_DELAY,
         verbose: bool = False,
         comm: Optional[socket.socket] = None,
@@ -57,6 +57,8 @@ class DeviceManager(device.LifxDevice):
             comm=comm,
         )
 
+        self._timeout = timeout
+
         # Load product identification
         products = pathlib.Path(__file__).parent / "products.yaml"
         with products.open() as f:
@@ -69,18 +71,24 @@ class DeviceManager(device.LifxDevice):
 
     def discover(
         self,
-        max_retries: int = 1,
-        timeout: float = 1,
-        socket_klass: Type = socket.socket,
+        num_retries: int = 10,
+        device_comm: Optional[socket.socket] = None,
     ) -> List[ProductInfo]:
-        """Discover devices on the network"""
+        """Discover devices on the network
+
+        Args:
+            num_retries: (int) Number of GetService calls made.
+            timeout:
+        """
 
         logging.info("Scanning for LIFX devices.")
         state_service_dict: Dict[str, packet.LifxResponse] = {}
-        for ii in range(max_retries):
-            if ii + 1 == max_retries:
+        # Disabling the timeout speeds up discovery
+        self.set_timeout(None)
+        for ii in range(num_retries):
+            if ii + 1 == num_retries:
                 # Use a timeout on the last get_devices to ensure no lingering packets
-                self.set_timeout(timeout)
+                self.set_timeout(self._timeout)
             search_responses = self.get_devices()
             for response in search_responses:
                 ip = response.addr[0]
@@ -89,14 +97,14 @@ class DeviceManager(device.LifxDevice):
         self.set_timeout(None)
         logging.info("Getting device info for discovered devices.")
         # Device manager has different socket options than unicast devices
-        comm = socket_klass(socket.AF_INET, socket.SOCK_DGRAM)
-        comm.settimeout(timeout)
+        device_comm = device_comm or socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        device_comm.settimeout(self._timeout)
         device_list: List[ProductInfo] = []
         for ip, state_service in state_service_dict.items():
             port = state_service.payload["port"]
             try:
-                label = self.get_label(ip, port=port, comm=comm)
-                product_dict = self.get_product_info(ip, port=port, comm=comm)
+                label = self.get_label(ip, port=port, comm=device_comm)
+                product_dict = self.get_product_info(ip, port=port, comm=device_comm)
             except packet.NoResponsesError as e:
                 logging.error(e)
                 continue
@@ -110,7 +118,11 @@ class DeviceManager(device.LifxDevice):
                 label=label,
                 product_name=product_name,
                 device=device_klass(
-                    ip, port=port, comm=comm, timeout=timeout, verbose=self._verbose
+                    ip,
+                    port=port,
+                    comm=device_comm,
+                    timeout=self._timeout,
+                    verbose=self._verbose,
                 ),
             )
             device_list.append(product_info)
@@ -217,7 +229,7 @@ if __name__ == "__main__":
     coloredlogs.install(level=logging.INFO, fmt="%(asctime)s %(levelname)s %(message)s")
 
     device_manager = DeviceManager()
-    devices = device_manager.discover(max_retries=10)
+    devices = device_manager.discover()
     for device_info in sorted(devices, key=lambda d: d.ip):
         product = device_info.product_name
         ip = device_info.ip

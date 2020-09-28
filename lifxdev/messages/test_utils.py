@@ -3,6 +3,7 @@
 """Create a mock socket that can be used for testing/simulating"""
 
 import enum
+import socket
 from typing import Dict, Optional, Tuple
 
 from lifxdev.messages import packet
@@ -43,6 +44,7 @@ class MockSocket:
         self._blocking = True
         self._timeout = None
         self._sequence = None
+        self._first_response_query = False
         self._responses: Dict[str, bytes] = {}
         for msg_num in sorted(packet._MESSAGE_TYPES.keys()):
             message = packet._MESSAGE_TYPES[msg_num]()
@@ -141,12 +143,16 @@ class MockSocket:
             self._response_bytes = self._responses["Acknowledgement"]
         else:
             self._response_bytes = self._responses[response_name]
+        self._first_response_query = True
         return len(message_bytes)
 
     def recvfrom(self, buffer_size) -> Tuple[bytes, Tuple[str, int]]:
         """Get the latest response bytes"""
-        if self._blocking:
+        if self._blocking and self._first_response_query:
+            self._first_response_query = False
             return (self._response_bytes, self._last_addr)
+        elif self._timeout:
+            raise socket.timeout
         else:
             raise BlockingIOError
 

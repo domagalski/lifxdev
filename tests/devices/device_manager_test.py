@@ -55,6 +55,13 @@ class DeviceManagerTest(unittest.TestCase):
         )
         self.assertEqual(product_info["class"], tile.LifxTile)
 
+    def test_discovery(self):
+        devices = self.lifx.discover(
+            device_comm=test_utils.MockSocket(product=test_utils.Product.LIGHT)
+        )
+        self.assertEqual(len(devices), 1)
+        self.assertIsInstance(devices[0].device, light.LifxLight)
+
 
 if __name__ == "__main__":
     coloredlogs.install(level=logging.INFO)
