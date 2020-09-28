@@ -30,7 +30,7 @@ class LifxTile(light.LifxLight):
         get_request = tile_messages.GetTileState64(width=TILE_WIDTH)
         get_request["tile_index"] = tile_index
         get_request["length"] = length
-        responses = self.send_recv(get_request, res_required=True)
+        responses = self.send_recv(get_request, res_required=True, retry_recv=length > 1)
         matrix_list: List[List[light.Hsbk]] = []
         for state in responses:
             matrix_list.append([light.Hsbk.from_packet(hsbk) for hsbk in state.payload["colors"]])

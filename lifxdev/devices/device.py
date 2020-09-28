@@ -16,7 +16,7 @@ class LifxDevice:
         mac_addr: Optional[str] = None,
         port: int = packet.LIFX_PORT,
         buffer_size: int = packet.BUFFER_SIZE,
-        timeout: Optional[float] = None,
+        timeout: Optional[float] = packet.TIMEOUT,
         nonblock_delay: float = packet.NONBOCK_DELAY,
         broadcast: bool = False,
         verbose: bool = False,
@@ -49,6 +49,10 @@ class LifxDevice:
         )
         self._comm = packet.PacketComm(udp_sender, verbose)
         self._verbose = verbose
+
+    def set_timeout(self, timeout: Optional[float]) -> None:
+        """Set the timeout of the UDP socket"""
+        self._comm.set_timeout(timeout)
 
     def send_msg(
         self,
@@ -83,6 +87,7 @@ class LifxDevice:
         port: Optional[int] = None,
         mac_addr: Optional[str] = None,
         comm: Optional[socket.socket] = None,
+        retry_recv: bool = False,
         verbose: bool = False,
     ) -> Optional[List[packet.LifxResponse]]:
         """Send a message to a device or broadcast address.
@@ -99,6 +104,7 @@ class LifxDevice:
             port: (int) Override the UDP port.
             mac_addr: (str) Override the MAC address.
             comm: (socket) Override the UDP socket.
+            retry_recv: (bool) Re-run recv_from until there are no more packets.
             verbose: (bool) Log messages as info instead of debug.
         """
         if res_required and ack_required:
@@ -111,6 +117,7 @@ class LifxDevice:
             port=port,
             mac_addr=mac_addr,
             comm=comm,
+            retry_recv=retry_recv,
             verbose=verbose or self._verbose,
         )
 

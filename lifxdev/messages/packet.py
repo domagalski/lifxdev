@@ -14,7 +14,12 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Type,
 BUFFER_SIZE = 4096
 LIFX_PORT = 56700
 NONBOCK_DELAY = 0.1
+TIMEOUT = 1
 REGISTER_T = List[Tuple[str, Optional[int], str]]
+
+
+class NoResponsesError(Exception):
+    pass
 
 
 class LifxType(enum.Enum):
@@ -745,6 +750,7 @@ class PacketComm:
         port: Optional[int] = None,
         mac_addr: Optional[str] = None,
         comm: Optional[socket.socket] = None,
+        retry_recv: bool = False,
         verbose: bool = False,
         **kwargs,
     ) -> Optional[List[LifxResponse]]:
@@ -755,6 +761,7 @@ class PacketComm:
             port: (int) Override the UDP port.
             mac_addr: (str) Override the MAC address.
             comm: (socket) Override the UDP socket.
+            retry_recv: (bool) Re-run recv_from until there are no more packets.
             verbose: (bool) Use logging.info for messages.
             kwargs: Keyword arguments for for get_bytes_and_source.
 
@@ -801,8 +808,18 @@ class PacketComm:
                 responses.append(response)
                 payload_name = response.payload.name
                 log_func(f"Received {payload_name} message from {recv_addr[0]}:{recv_addr[1]}")
+                if not retry_recv:
+                    break
 
+            if not responses:
+                raise NoResponsesError(
+                    f"Did not get a response from {addr[0]} with message: {payload_name}"
+                )
             return responses
+
+    def set_timeout(self, timeout: Optional[float]) -> None:
+        """Set the timeout of the UDP socket"""
+        self._comm.comm.settimeout(timeout)
 
 
 def is_str_ipaddr(ipaddr: str) -> bool:

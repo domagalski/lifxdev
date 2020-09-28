@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
+import logging
 import pathlib
 import socket
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NamedTuple, Optional, Type
 
 import yaml
 
@@ -14,6 +15,14 @@ from lifxdev.messages import packet
 from lifxdev.messages import device_messages
 
 
+class ProductInfo(NamedTuple):
+    ip: str
+    port: int
+    label: str
+    product_name: str
+    device: light.LifxLight
+
+
 class DeviceManager(device.LifxDevice):
     """Device manager
 
@@ -22,9 +31,11 @@ class DeviceManager(device.LifxDevice):
 
     def __init__(
         self,
+        *,
         buffer_size: int = packet.BUFFER_SIZE,
         timeout: Optional[float] = None,
         nonblock_delay: float = packet.NONBOCK_DELAY,
+        verbose: bool = False,
         comm: Optional[socket.socket] = None,
     ):
         """Create a LIFX device manager.
@@ -42,7 +53,7 @@ class DeviceManager(device.LifxDevice):
             buffer_size=buffer_size,
             timeout=timeout,
             nonblock_delay=nonblock_delay,
-            verbose=True,
+            verbose=verbose,
             comm=comm,
         )
 
@@ -56,6 +67,56 @@ class DeviceManager(device.LifxDevice):
         for product in product_list:
             self._products[product["pid"]] = product
 
+    def discover(
+        self,
+        max_retries: int = 1,
+        timeout: float = 1,
+        socket_klass: Type = socket.socket,
+    ) -> List[ProductInfo]:
+        """Discover devices on the network"""
+
+        logging.info("Scanning for LIFX devices.")
+        state_service_dict: Dict[str, packet.LifxResponse] = {}
+        for ii in range(max_retries):
+            if ii + 1 == max_retries:
+                # Use a timeout on the last get_devices to ensure no lingering packets
+                self.set_timeout(timeout)
+            search_responses = self.get_devices()
+            for response in search_responses:
+                ip = response.addr[0]
+                state_service_dict[ip] = response
+
+        self.set_timeout(None)
+        logging.info("Getting device info for discovered devices.")
+        # Device manager has different socket options than unicast devices
+        comm = socket_klass(socket.AF_INET, socket.SOCK_DGRAM)
+        comm.settimeout(timeout)
+        device_list: List[ProductInfo] = []
+        for ip, state_service in state_service_dict.items():
+            port = state_service.payload["port"]
+            try:
+                label = self.get_label(ip, port=port, comm=comm)
+                product_dict = self.get_product_info(ip, port=port, comm=comm)
+            except packet.NoResponsesError as e:
+                logging.error(e)
+                continue
+
+            product_name = product_dict["name"]
+            device_klass = product_dict["class"]
+
+            product_info = ProductInfo(
+                ip=ip,
+                port=port,
+                label=label,
+                product_name=product_name,
+                device=device_klass(
+                    ip, port=port, comm=comm, timeout=timeout, verbose=self._verbose
+                ),
+            )
+            device_list.append(product_info)
+
+        return device_list
+
     def get_devices(self) -> List[packet.LifxResponse]:
         """Get device info from one or more devices.
 
@@ -68,15 +129,16 @@ class DeviceManager(device.LifxDevice):
         Returns:
             A list of StateService responses.
         """
-        return self.send_recv(device_messages.GetService(), res_required=True)
+        return self.send_recv(device_messages.GetService(), res_required=True, retry_recv=True)
 
     def get_label(
         self,
         ip: str,
         *,
         port: int = packet.LIFX_PORT,
-        mac_addr: Optional[int] = None,
+        mac_addr: Optional[str] = None,
         comm: Optional[socket.socket] = None,
+        verbose: bool = False,
     ) -> str:
         """Get the label of a device
 
@@ -85,6 +147,7 @@ class DeviceManager(device.LifxDevice):
             port: (int) Override the UDP port.
             mac_addr: (str) Override the MAC address.
             comm: (socket) Override the UDP socket.
+            verbose: (bool) Use logging.info instead of logging.debug.
         """
         return (
             self.send_recv(
@@ -94,6 +157,7 @@ class DeviceManager(device.LifxDevice):
                 port=port,
                 mac_addr=mac_addr,
                 comm=comm,
+                verbose=verbose,
             )
             .pop()
             .payload["label"]
@@ -106,6 +170,7 @@ class DeviceManager(device.LifxDevice):
         port: int = packet.LIFX_PORT,
         mac_addr: Optional[int] = None,
         comm: Optional[socket.socket] = None,
+        verbose: bool = False,
     ) -> Dict[str, Any]:
         """Get the Python class needed to control a LIFX product.
 
@@ -114,6 +179,7 @@ class DeviceManager(device.LifxDevice):
             port: (int) Override the UDP port.
             mac_addr: (str) Override the MAC address.
             comm: (socket) Override the UDP socket.
+            verbose: (bool) Use logging.info instead of logging.debug.
         """
         product_id = (
             self.send_recv(
@@ -123,6 +189,7 @@ class DeviceManager(device.LifxDevice):
                 port=port,
                 mac_addr=mac_addr,
                 comm=comm,
+                verbose=verbose,
             )
             .pop()
             .payload["product"]
@@ -142,3 +209,18 @@ class DeviceManager(device.LifxDevice):
 
         product["class"] = klass
         return product
+
+
+if __name__ == "__main__":
+    import coloredlogs
+
+    coloredlogs.install(level=logging.INFO, fmt="%(asctime)s %(levelname)s %(message)s")
+
+    device_manager = DeviceManager()
+    devices = device_manager.discover(max_retries=10)
+    for device_info in sorted(devices, key=lambda d: d.ip):
+        product = device_info.product_name
+        ip = device_info.ip
+        label = device_info.label
+        logging.info(f"{ip}:\tDiscovered {product}: {label}")
+    logging.info(f"Total number of devices: {len(devices)}")
