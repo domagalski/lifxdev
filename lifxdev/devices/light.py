@@ -46,6 +46,7 @@ class LifxLight(device.LifxDevice):
         Returns:
             If ack_required, then get a color tuple as a response, else None.
         """
+        hsbk = color.Hsbk.from_tuple(hsbk)
         set_color_msg = light_messages.SetColor(
             color=hsbk.to_packet(),
             duration=int(duration_s * 1000),

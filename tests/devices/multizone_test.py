@@ -32,6 +32,8 @@ class MultiZoneTest(unittest.TestCase):
             self.assertAlmostEqual(original.brightness, recovered.brightness)
             self.assertEqual(original.kelvin, recovered.kelvin)
 
+        self.assertIsInstance(self.lifx.set_colormap("cool", 0), packet.LifxResponse)
+
 
 if __name__ == "__main__":
     coloredlogs.install(level=logging.INFO)

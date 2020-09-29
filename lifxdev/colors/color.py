@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 
-from typing import NamedTuple, Union, Tuple
+import random
+from typing import List, NamedTuple, Union, Tuple
+
+from matplotlib import cm
+from matplotlib import colors
 
 from lifxdev.messages import packet
+
+KELVIN = 5500
 
 
 class Hsbk(NamedTuple):
@@ -49,51 +55,42 @@ class Hsbk(NamedTuple):
         return hsbk
 
 
-class Rgb(NamedTuple):
-    """RGB with normalization"""
+def get_colormap(
+    cmap: Union[str, colors.Colormap],
+    length: int,
+    kelvin: int = 5500,
+    *,
+    randomize: bool = False,
+) -> List[Hsbk]:
+    """Get a colormap as HSBK values
 
-    norm: float
-    red: float
-    green: float
-    blue: float
+    Args:
+        cmap: A matplotlib colormap name or object get HSBK colors from.
+        length: The number of colors to return in the list.
+        kelvin: Color temperature of white colors in the colormap.
+        randomize: Shuffle the ordering of the colors.
 
-
-def rgba2hsbk(rgb: Rgb, kelvin: int) -> Hsbk:
+    Returns:
+        A list of HSBK values for the colormap.
     """
-    Convert RGBA to HSBK.
+    if isinstance(cmap, str):
+        cmap = cm.get_cmap(cmap)
 
-    kelvin mainly sets white balance for photography.
-    """
-    red = rgb.red
-    green = rgb.green
-    blue = rgb.blue
-    max_col = max(red, green, blue)
-    min_col = min(red, green, blue)
+    if length < 1:
+        raise ValueError("length must be at least one.")
+    elif length == 1:
+        selectors = [random.random() if randomize else 0.0]
+    else:
+        selectors = [ii / (length - 1) for ii in range(length)]
+    if randomize:
+        random.shuffle(selectors)
 
-    # Get the hue
-    hue = 0
-    h_scale = 60.0
-    if max_col == min_col:
-        hue = 0.0
-    elif max_col == red:
-        hue = h_scale * ((green - blue) / (max_col - min_col))
-    elif max_col == green:
-        hue = h_scale * (2 + (blue - red) / (max_col - min_col))
-    elif max_col == blue:
-        hue = h_scale * (4 + (red - green) / (max_col - min_col))
+    rgb_array = colors.to_rgba_array(cmap(selectors)).transpose()[:3].transpose()
+    hsv_array = colors.rgb_to_hsv(rgb_array)
+    hsbk_list = [Hsbk.from_tuple((360 * hsv[0],) + tuple(hsv[1:]) + (kelvin,)) for hsv in hsv_array]
+    return hsbk_list
 
-    # Fix wrapping for hue
-    while hue > 360:
-        hue -= 360
-    while hue < 0:
-        hue += 360
 
-    # get the saturation
-    sat = 0.0
-    if max_col:
-        sat = (max_col - min_col) / max_col
-
-    # brightness
-    brightness = max_col / rgb.norm
-
-    return Hsbk(hue=hue, saturation=sat, brightness=brightness, kelvin=kelvin)
+def get_all_colormaps() -> List[str]:
+    """Get a list of all colormaps"""
+    return sorted(cm._cmap_registry)

@@ -59,9 +59,9 @@ class DeviceGroup:
 
         # Organizing devices by type is useful for setting colormaps
         self._devices_by_type = collections.defaultdict(list)
-        for device_or_group in self._devices_and_groups.values():
-            device_type = DeviceType[_DEVICE_TYPES_R[type(device_or_group).__name__]]
-            self._devices_by_type[device_type].append(device_or_group)
+        for lifx_device in self._all_devices.values():
+            device_type = DeviceType[_DEVICE_TYPES_R[type(lifx_device).__name__]]
+            self._devices_by_type[device_type].append(lifx_device)
 
     def get_all_devices(self) -> Dict[str, Any]:
         return self._all_devices
@@ -344,6 +344,14 @@ class DeviceManager(device.LifxDevice):
                 )
 
         return DeviceGroup(devices_and_groups)
+
+    @_require_config_loaded
+    def get_all_devices(self) -> Dict[str, Any]:
+        return self._root_device_group.get_all_devices()
+
+    @_require_config_loaded
+    def get_all_groups(self) -> Dict[str, DeviceGroup]:
+        return self._root_device_group.get_all_groups()
 
     @_require_config_loaded
     def get_device(self, name: str) -> Any:

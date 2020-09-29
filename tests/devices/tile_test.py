@@ -21,9 +21,10 @@ class MultiZoneTest(unittest.TestCase):
 
     def test_get_device_chain(self):
         response = self.lifx.get_chain().payload
-        tile_info = response["tile_devices"][0]
-        self.assertTrue(tile_info["width"], tile.TILE_WIDTH)
-        self.assertTrue(tile_info["height"], tile.TILE_WIDTH)
+        self.assertEqual(response["total_count"], 5)
+        for tile_info in response["tile_devices"]:
+            self.assertEqual(tile_info["width"], tile.TILE_WIDTH)
+            self.assertEqual(tile_info["height"], tile.TILE_WIDTH)
 
     def test_set_color(self):
         colors = [
@@ -39,6 +40,8 @@ class MultiZoneTest(unittest.TestCase):
             self.assertAlmostEqual(original.saturation, recovered.saturation)
             self.assertAlmostEqual(original.brightness, recovered.brightness)
             self.assertEqual(original.kelvin, recovered.kelvin)
+
+        self.assertIsInstance(self.lifx.set_colormap("cool", 0), packet.LifxResponse)
 
 
 if __name__ == "__main__":
