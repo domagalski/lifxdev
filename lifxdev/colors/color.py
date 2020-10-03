@@ -22,7 +22,7 @@ class Hsbk(NamedTuple):
     @classmethod
     def from_packet(cls, hsbk: packet.Hsbk) -> "Hsbk":
         """Create a HSBK tuple from a message packet"""
-        max_hue = hsbk.get_max("hue")
+        max_hue = hsbk.get_max("hue") + 1
         max_saturation = hsbk.get_max("saturation")
         max_brightness = hsbk.get_max("brightness")
 
@@ -44,7 +44,7 @@ class Hsbk(NamedTuple):
     def to_packet(self) -> packet.Hsbk:
         """Create a message packet from an HSBK tuple"""
         hsbk = packet.Hsbk()
-        max_hue = hsbk.get_max("hue")
+        max_hue = hsbk.get_max("hue") + 1
         max_saturation = hsbk.get_max("saturation")
         max_brightness = hsbk.get_max("brightness")
 
@@ -83,6 +83,8 @@ def get_colormap(
     else:
         selectors = [ii / (length - 1) for ii in range(length)]
     if randomize:
+        offset = random.random()
+        selectors = [(idx + offset) % 1.0 for idx in selectors]
         random.shuffle(selectors)
 
     rgb_array = colors.to_rgba_array(cmap(selectors)).transpose()[:3].transpose()

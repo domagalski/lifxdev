@@ -6,6 +6,7 @@ import unittest
 
 import coloredlogs
 
+from lifxdev.colors import color
 from lifxdev.devices import device_manager
 from lifxdev.devices import light
 from lifxdev.devices import multizone
@@ -85,6 +86,33 @@ class DeviceManagerTest(unittest.TestCase):
                 self.lifx.load_config,
                 CONFIG_PATH.parent / f"bad_config{ii}.yaml",
             )
+
+    def test_set_color(self):
+        hsbk = color.Hsbk(hue=300, saturation=1, brightness=1, kelvin=5500)
+        self.lifx.root.set_color(hsbk, 0)
+        for device in self.lifx.get_all_devices().values():
+            device_hsbk = device.get_color()
+            self.assertEqual(round(device_hsbk.hue), round(hsbk.hue))
+            self.assertEqual(device_hsbk.saturation, hsbk.saturation)
+            self.assertEqual(device_hsbk.brightness, hsbk.brightness)
+            self.assertEqual(device_hsbk.kelvin, hsbk.kelvin)
+
+    def test_set_colormap(self):
+        colors = [color.Hsbk.from_tuple((0, 0, 1, 5500)) for _ in range(16)]
+        for device in self.lifx.get_all_devices().values():
+            if isinstance(device, multizone.LifxMultiZone):
+                device.set_multizone(colors, 0)
+
+        self.lifx.root.set_colormap("hsv", 0)
+        for device in self.lifx.get_all_devices().values():
+            if not isinstance(device, (multizone.LifxMultiZone, tile.LifxTile)):
+                hsbk = device.get_color()
+                self.assertEqual(hsbk.brightness, 1)
+
+    def test_set_power(self):
+        self.lifx.root.set_power(True, 0)
+        for device in self.lifx.get_all_devices().values():
+            self.assertTrue(device.get_power())
 
 
 if __name__ == "__main__":

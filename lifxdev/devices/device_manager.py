@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 import yaml
 
+from lifxdev.colors import color
 from lifxdev.devices import device
 from lifxdev.devices import light
 from lifxdev.devices import multizone
@@ -22,6 +23,10 @@ CONFIG_PATH = pathlib.Path.home() / ".lifx" / "devices.yaml"
 
 
 class DeviceConfigError(Exception):
+    pass
+
+
+class DeviceDiscoveryError(Exception):
     pass
 
 
@@ -80,6 +85,67 @@ class DeviceGroup:
 
     def has_group(self, name: str) -> bool:
         return name in self._all_groups
+
+    def set_color(self, hsbk: light.COLOR_T, duration_s: float) -> None:
+        """Set the color of all lights in the device group.
+
+        Args:
+            hsbk: (color.Hsbk) Human-readable HSBK tuple.
+            duration_s: (float) The time in seconds to make the color transition.
+        """
+
+        for target in self._all_devices.values():
+            target.set_color(hsbk, duration_s, ack_required=False)
+
+    def set_power(self, state: bool, duration_s: float) -> None:
+        """Set power state on all lights in the device group.
+
+        Args:
+            state: (bool) True powers on the light. False powers it off.
+            duration_s: (float) The time in seconds to make the color transition.
+        """
+        for target in self._all_devices.values():
+            target.set_power(state, duration_s, ack_required=False)
+
+    def set_colormap(
+        self,
+        cmap: Union[str, color.colors.Colormap],
+        duration_s: float,
+        *,
+        kelvin: int = color.KELVIN,
+        division: int = 2,
+    ) -> None:
+        """Set the device group to a matplotlib colormap.
+
+        Args:
+            cmap_name: (str) Name or object of a matplotlib colormap.
+            duration_s: (float) The time in seconds to make the color transition.
+            kelvin: Color temperature of white colors in the colormap.
+            division: How much to subdivide the tiles (must be in [1, 2, 4]).
+        """
+        bulbs = self._devices_by_type[DeviceType.light]
+        bulbs += self._devices_by_type[DeviceType.infrared]
+        bulb_cmap = color.get_colormap(cmap, len(bulbs), kelvin, randomize=True)
+        for bulb, cmap_color in zip(bulbs, bulb_cmap):
+            bulb.set_color(cmap_color, duration_s, ack_required=False)
+
+        for strip in self._devices_by_type[DeviceType.multizone]:
+            try:
+                strip.set_colormap(cmap, duration_s, kelvin=kelvin, ack_required=False)
+            except packet.NoResponsesError:
+                continue
+
+        for block in self._devices_by_type[DeviceType.tile]:
+            try:
+                block.set_colormap(
+                    cmap,
+                    duration_s,
+                    kelvin=kelvin,
+                    division=division,
+                    ack_required=False,
+                )
+            except packet.NoResponsesError:
+                continue
 
 
 # Convienence for validating type names in config files
@@ -150,6 +216,7 @@ class DeviceManager(device.LifxDevice):
         )
 
         self._timeout = timeout
+        self._config_path = config_path
 
         # Load product identification
         products = pathlib.Path(__file__).parent / "products.yaml"
@@ -162,9 +229,23 @@ class DeviceManager(device.LifxDevice):
             self._products[product["pid"]] = product
 
         # Load config sets the self._root_device_group variable
+        self._discovered_device_group: Optional[DeviceGroup] = None
         self._root_device_group: Optional[DeviceGroup] = None
         if config_path.exists():
             self.load_config(config_path)
+
+    @property
+    def discovered(self) -> DeviceGroup:
+        """The discovered group"""
+        if not self._discovered_device_group:
+            raise DeviceDiscoveryError("Device discovery has not been performed.")
+        return self._discovered_device_group
+
+    @property
+    @_require_config_loaded
+    def root(self) -> DeviceGroup:
+        """The root device group"""
+        return self._root_device_group
 
     def discover(self, num_retries: int = 10) -> List[ProductInfo]:
         """Discover devices on the network
@@ -210,6 +291,7 @@ class DeviceManager(device.LifxDevice):
                 device=device_klass(
                     ip,
                     port=port,
+                    label=label,
                     comm=self._get_socket(),
                     timeout=self._timeout,
                     verbose=self._verbose,
@@ -340,7 +422,12 @@ class DeviceManager(device.LifxDevice):
                 port = conf.get("port", packet.LIFX_PORT)
                 klass = _DEVICE_TYPES[device_type.name]
                 devices_and_groups[name] = klass(
-                    ip, port=port, mac_addr=mac, comm=self._get_socket()
+                    ip,
+                    port=port,
+                    label=name,
+                    mac_addr=mac,
+                    comm=self._get_socket(),
+                    verbose=self._verbose,
                 )
 
         return DeviceGroup(devices_and_groups)

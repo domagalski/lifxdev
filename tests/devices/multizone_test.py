@@ -15,6 +15,7 @@ class MultiZoneTest(unittest.TestCase):
     def setUp(self):
         self.lifx = multizone.LifxMultiZone(
             "127.0.0.1",
+            label="LIFX mock",
             nonblock_delay=0,
             comm=test_utils.MockSocket(product=test_utils.Product.MZ),
         )

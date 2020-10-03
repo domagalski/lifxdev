@@ -1,15 +1,29 @@
 #!/usr/bin/env python3
 
-from typing import Optional
+from typing import Optional, Tuple, Union
 
 from lifxdev.colors import color
 from lifxdev.devices import device
 from lifxdev.messages import light_messages
 from lifxdev.messages import packet
 
+COLOR_T = Union[color.Hsbk, Tuple[float, float, float, int]]
+
 
 class LifxLight(device.LifxDevice):
     """Light control"""
+
+    def __init__(self, *args, label: str, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._label = label
+
+    @property
+    def label(self) -> str:
+        return self._label
+
+    @label.setter
+    def label(self, value: str):
+        raise RuntimeError("Label can only be set on init.")
 
     def get_color(self) -> color.Hsbk:
         """Get the color of the device
@@ -31,7 +45,7 @@ class LifxLight(device.LifxDevice):
 
     def set_color(
         self,
-        hsbk: color.Hsbk,
+        hsbk: COLOR_T,
         duration_s: float,
         *,
         ack_required: bool = True,
@@ -44,7 +58,7 @@ class LifxLight(device.LifxDevice):
             ack_required: (bool) True gets an acknowledgement from the light.
 
         Returns:
-            If ack_required, then get a color tuple as a response, else None.
+            If ack_required, get an acknowledgement LIFX response tuple.
         """
         hsbk = color.Hsbk.from_tuple(hsbk)
         set_color_msg = light_messages.SetColor(
@@ -93,7 +107,7 @@ class LifxInfraredLight(LifxLight):
             ack_required: (bool) True gets an acknowledgement from the light.
 
         Returns:
-            If ack_required, then return the IR level response.
+            If ack_required, get an acknowledgement LIFX response tuple.
         """
         ir = light_messages.SetInfrared()
         max_brightness = ir.get_max("brightness")
