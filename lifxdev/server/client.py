@@ -18,14 +18,16 @@ class LifxClient:
     pre-defined LIFX processes.
     """
 
-    def __init__(self, ip: str = "localhost", port: int = server.SERVER_PORT):
+    def __init__(self, ip: str = "localhost", port: int = server.SERVER_PORT, timeout: int = 1000):
         """Create a LIFX client
 
         Args:
             ip: (str) The IP address to connect to.
             port: (int) The TCP port to connect to.
+            timeout: (int) ZMQ timeout in milliseconds. -1 means no timeout.
         """
         self._zmq_socket = zmq.Context().socket(zmq.REQ)
+        self._zmq_socket.setsockopt(zmq.RCVTIMEO, timeout)
         self._zmq_socket.connect(f"tcp://{ip}:{port}")
 
     def __call__(self, cmd_and_args: str) -> str:
@@ -66,8 +68,16 @@ class LifxClient:
     show_default=True,
     help="TCP Port of the LIFX server.",
 )
+@click.option(
+    "-t",
+    "--timeout",
+    default=1,
+    type=float,
+    show_default=True,
+    help="ZMQ Timeout in seconds.",
+)
 @click.argument("cmd", nargs=-1)
-def main(ip: str, port: int, cmd: str):
+def main(ip: str, port: int, timeout: float, cmd: str):
     """Control LIFX devices and processes."""
 
     logs.setup()
@@ -76,8 +86,7 @@ def main(ip: str, port: int, cmd: str):
         sys.exit(1)
 
     cmd = " ".join([shlex.quote(word) for word in cmd])
-
-    lifx = LifxClient(ip, port)
+    lifx = LifxClient(ip, port, timeout=-1 if timeout < 0 else int(timeout * 1000))
     try:
         logging.info(lifx(cmd))
     except Exception as e:

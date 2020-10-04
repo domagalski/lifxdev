@@ -53,10 +53,12 @@ def _command(label: str, description: str) -> Callable:
         function.description = description
 
         # Construct the arg parser
-        if not hasattr(function, "arg_list"):
-            function.arg_list = []
+        arg_list = []
+        if hasattr(function, "arg_list"):
+            arg_list = function.arg_list[:]
+            del function.arg_list
         function.parser = _CommandParser(prog=label, description=description)
-        for flags, kwargs in reversed(function.arg_list):
+        for flags, kwargs in reversed(arg_list):
             function.parser.add_argument(*flags, **kwargs)
 
         return function
@@ -150,6 +152,7 @@ class LifxServer:
             verbose: (bool) Log to INFO instead of DEBUG.
             comm: (socket) Override the default UDB socket object.
         """
+        self._server_port = server_port
         self._device_config_path = pathlib.Path(device_config_path)
         self._process_config_path = pathlib.Path(process_config_path)
 
@@ -162,12 +165,16 @@ class LifxServer:
 
         # Setup ZMQ
         self._zmq_socket = zmq.Context().socket(zmq.REP)
+        self._zmq_socket.set
         self._zmq_socket.bind(f"tcp://*:{server_port}")
 
         # Set the command registry
         self._commands: Dict[str, Callable] = {}
         for _, cmd in inspect.getmembers(self, predicate=_is_command):
             self._commands[cmd.label] = cmd
+
+    def close(self) -> None:
+        self._zmq_socket.close()
 
     def _get_device_or_group(self, label: str) -> Optional[Any]:
         """Get a LIFX device object or device group object by label.
@@ -213,6 +220,54 @@ class LifxServer:
             response = ServerResponse(error=error)
         self._zmq_socket.send_pyobj(response)
         logging.info("Response sent to client.")
+
+    @_command("help", "Show every server command and description.")
+    def _show_help(self) -> str:
+        ljust = 12
+        indent = 8
+        msg_lines = [
+            "\n\n    LIFX Server Commands:\n",
+            "".join([" " * indent, "help".ljust(ljust), self._commands["help"].description]),
+        ]
+
+        for cmd in sorted(self._commands.values(), key=lambda c: c.label):
+            if cmd.label == "help":
+                continue
+
+            msg_lines.append("".join([" " * indent, cmd.label.ljust(ljust), cmd.description]))
+
+        msg_lines.append("")
+        return "\n".join(msg_lines)
+
+    @_command("devices", "Show every available device.")
+    def _show_devices(self) -> str:
+        msg_lines = ["\n\n    LIFX Devices:\n"]
+        for lifx_device in sorted(
+            self._device_manager.get_all_devices().values(),
+            key=lambda l: l.label,
+        ):
+            msg_lines.append(
+                "".join(
+                    [
+                        " " * 8,
+                        lifx_device.label.ljust(24),
+                        type(lifx_device).__name__.ljust(18),
+                        lifx_device.ip,
+                    ]
+                )
+            )
+
+        msg_lines.append("")
+        return "\n".join(msg_lines)
+
+    @_command("groups", "Show every available group.")
+    def _show_groups(self) -> str:
+        msg_lines = ["\n\n    LIFX Groups:\n"]
+        for group in sorted(self._device_manager.get_all_groups().keys()):
+            msg_lines.append("".join([" " * 8, group]))
+
+        msg_lines.append("")
+        return "\n".join(msg_lines)
 
     @_command("color", "Get or set the color of a device or group.")
     @_add_arg("label", help_msg="Device or group to set power to.")
@@ -272,9 +327,9 @@ class LifxServer:
             msg = f"{label} color state:\n{hsbk_str}"
         return msg
 
-    @_command("cmap", "Get or set the color of a device or group.")
-    @_add_arg("label", help_msg="Device or group to set power to.")
-    @_add_arg("colormap", arg_type=str, help_msg="Name of any matplotlib colormap.")
+    @_command("cmap", "Set a device or group to a matplotlib colormap.")
+    @_add_arg("label", arg_type=str, nargs="?", help_msg="Device or group to set power to.")
+    @_add_arg("colormap", arg_type=str, nargs="?", help_msg="Name of any matplotlib colormap.")
     @_add_arg(
         "duration",
         nargs="?",
@@ -293,12 +348,24 @@ class LifxServer:
         self,
         *,
         label: str,
-        colormap: str,
+        colormap: Optional[str],
         duration: float,
         division: int,
     ) -> str:
-        lifx_device = self._get_device_or_group(label)
 
+        # Print colormaps and return
+        if not colormap:
+            msg_lines = ["\n\n    Matplotlib Colormaps:\n"]
+            for cmap_name in color.get_all_colormaps():
+                if cmap_name.endswith("_r"):
+                    continue
+                msg_lines.append("".join([" " * 8, cmap_name]))
+
+            msg_lines.append("")
+            return "\n".join(msg_lines)
+
+        # Set the colormap
+        lifx_device = self._get_device_or_group(label)
         if hasattr(lifx_device, "set_colormap"):
             kwargs = {"cmap": colormap, "duration_s": duration}
             if isinstance(lifx_device, (tile.LifxTile, device_manager.DeviceGroup)):

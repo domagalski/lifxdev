@@ -633,6 +633,10 @@ class PacketComm:
         self._comm = comm
         self._log_func = logging.info if verbose else logging.debug
 
+    @property
+    def ip(self) -> str:
+        return self._comm.ip
+
     @staticmethod
     def decode_bytes(
         message_bytes: bytes,

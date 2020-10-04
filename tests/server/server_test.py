@@ -4,6 +4,7 @@ import logging
 import pathlib
 import unittest
 import threading
+import time
 from typing import Callable, Union
 
 import portpicker
@@ -18,7 +19,7 @@ DEVICE_CONFIG = pathlib.Path(__file__).parent / "test_data" / "devices.yaml"
 PROCESS_CONFIG = pathlib.Path(__file__).parent / "test_data" / "processes.yaml"
 
 
-class DeviceManagerTest(unittest.TestCase):
+class ServerTest(unittest.TestCase):
     def setUp(self):
         zmq_port = portpicker.pick_unused_port()
         self.mock_socket = test_utils.MockSocket()
@@ -30,14 +31,31 @@ class DeviceManagerTest(unittest.TestCase):
         )
         self.lifx_client = client.LifxClient(port=zmq_port)
 
+    def testDown(self):
+        self.lifx_server.close()
+
+    def _start_server(self):
+        with self.lock:
+            self.server_online = True
+        self.lifx_server.recv_and_run()
+
     def run_cmd_get_response(
         self,
         cmd_str: str,
         call_func: Callable,
     ) -> Union[str, server.ServerResponse]:
 
-        server = threading.Thread(target=self.lifx_server.recv_and_run)
+        self.lock = threading.Lock()
+        self.server_online = False
+        server = threading.Thread(target=self._start_server)
         server.start()
+
+        with self.lock:
+            server_online = self.server_online
+        while not server_online:
+            time.sleep(0.01)
+            with self.lock:
+                server_online = self.server_online
 
         try:
             response = call_func(cmd_str)
@@ -55,6 +73,12 @@ class DeviceManagerTest(unittest.TestCase):
             "some-random-command device arg arg arg",
             self.lifx_client,
         )
+
+    def test_help_commands(self):
+        self.assertIn("\n", self.run_cmd_get_response("help", self.lifx_client))
+        self.assertIn("\n", self.run_cmd_get_response("devices", self.lifx_client))
+        self.assertIn("\n", self.run_cmd_get_response("groups", self.lifx_client))
+        self.assertIn("\n", self.run_cmd_get_response("cmap", self.lifx_client))
 
     def test_set_color(self):
         logging.info(self.run_cmd_get_response("color -h", self.lifx_client))

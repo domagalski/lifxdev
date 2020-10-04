@@ -48,6 +48,10 @@ class LifxDevice:
         self._comm = packet.PacketComm(udp_sender, verbose)
         self._verbose = verbose
 
+    @property
+    def ip(self) -> str:
+        return self._comm.ip
+
     def _get_socket(self) -> socket.socket:
         """Return the socket object for UDP communication"""
         return self._comm.get_socket()
