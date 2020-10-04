@@ -130,22 +130,16 @@ class DeviceGroup:
             bulb.set_color(cmap_color, duration_s, ack_required=False)
 
         for strip in self._devices_by_type[DeviceType.multizone]:
-            try:
-                strip.set_colormap(cmap, duration_s, kelvin=kelvin, ack_required=False)
-            except packet.NoResponsesError:
-                continue
+            strip.set_colormap(cmap, duration_s, kelvin=kelvin, ack_required=False)
 
         for block in self._devices_by_type[DeviceType.tile]:
-            try:
-                block.set_colormap(
-                    cmap,
-                    duration_s,
-                    kelvin=kelvin,
-                    division=division,
-                    ack_required=False,
-                )
-            except packet.NoResponsesError:
-                continue
+            block.set_colormap(
+                cmap,
+                duration_s,
+                kelvin=kelvin,
+                division=division,
+                ack_required=False,
+            )
 
 
 # Convienence for validating type names in config files
@@ -188,13 +182,13 @@ class DeviceManager(device.LifxDevice):
 
     def __init__(
         self,
+        config_path: Optional[Union[str, pathlib.Path]] = None,
         *,
         buffer_size: int = packet.BUFFER_SIZE,
         timeout: Optional[float] = packet.TIMEOUT,
         nonblock_delay: float = packet.NONBOCK_DELAY,
         verbose: bool = False,
         comm: Optional[socket.socket] = None,
-        config_path: Union[str, pathlib.Path] = CONFIG_PATH,
     ):
         """Create a LIFX device manager.
 
@@ -215,8 +209,8 @@ class DeviceManager(device.LifxDevice):
             comm=comm,
         )
 
-        self._timeout = timeout
         self._config_path = config_path
+        self._timeout = timeout
 
         # Load product identification
         products = pathlib.Path(__file__).parent / "products.yaml"
@@ -231,6 +225,8 @@ class DeviceManager(device.LifxDevice):
         # Load config sets the self._root_device_group variable
         self._discovered_device_group: Optional[DeviceGroup] = None
         self._root_device_group: Optional[DeviceGroup] = None
+        if not config_path:
+            return
         if config_path.exists():
             self.load_config(config_path)
 
@@ -382,7 +378,7 @@ class DeviceManager(device.LifxDevice):
         product["class"] = klass
         return product
 
-    def load_config(self, config_path: Union[str, pathlib.Path] = CONFIG_PATH) -> DeviceGroup:
+    def load_config(self, config_path: Union[str, pathlib.Path]) -> DeviceGroup:
         """Load a config and populate device groups.
 
         Args:

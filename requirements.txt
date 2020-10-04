@@ -1,3 +1,5 @@
+click
 coloredlogs
-PyYAML
 matplotlib
+PyYAML
+pyzmq

@@ -107,7 +107,7 @@ class DeviceManagerTest(unittest.TestCase):
         for device in self.lifx.get_all_devices().values():
             if not isinstance(device, (multizone.LifxMultiZone, tile.LifxTile)):
                 hsbk = device.get_color()
-                self.assertEqual(hsbk.brightness, 1)
+                self.assertGreaterEqual(hsbk.brightness, 0.975)
 
     def test_set_power(self):
         self.lifx.root.set_power(True, 0)

@@ -2,5 +2,6 @@ black
 coverage
 flake8
 ipython
+portpicker
 pre-commit
 pytest

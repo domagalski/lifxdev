@@ -12,5 +12,10 @@ setuptools.setup(
     license="GPL",
     packages=setuptools.find_namespace_packages(include=[f"{pkg_name}.*"]),
     package_data={"": ["*.yaml"]},
-    # scripts=glob.glob("scripts/*"),
+    entry_points={
+        "console_scripts": [
+            "lifx-client=lifxdev.server.client:main",
+            "lifx-server=lifxdev.server.server:main",
+        ]
+    },
 )
