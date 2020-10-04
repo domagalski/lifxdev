@@ -11,7 +11,9 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Type, U
 import click
 import zmq
 
+from lifxdev.colors import color
 from lifxdev.devices import device_manager
+from lifxdev.devices import tile
 from lifxdev.server import logs
 
 SERVER_PORT = 16384
@@ -81,6 +83,7 @@ def _add_arg(
     default: Optional[Any] = None,
     required: bool = False,
     choices: Optional[Union[List, Set]] = None,
+    nargs: Optional[Union[int, str]] = None,
 ) -> Callable:
     """Register argument parsing options to a server command
 
@@ -91,6 +94,7 @@ def _add_arg(
         default: The default value of the argument.
         required: Whether or not the argument is required.
         choices: Iterable of valid choices for the argument.
+        nargs: Specify the number or args using the argparse convention.
     """
 
     def _add_arg_to_method(function: Callable):
@@ -107,6 +111,8 @@ def _add_arg(
             kwargs["required"] = required
         if choices:
             kwargs["choices"] = choices
+        if nargs:
+            kwargs["nargs"] = nargs
 
         function.arg_list.append((flags, kwargs))
         return function
@@ -208,26 +214,133 @@ class LifxServer:
         self._zmq_socket.send_pyobj(response)
         logging.info("Response sent to client.")
 
-    @_command("power", "Get or set the power of a device or group.")
+    @_command("color", "Get or set the color of a device or group.")
     @_add_arg("label", help_msg="Device or group to set power to.")
-    @_add_arg("state", choices={"on", "off", "state"}, help_msg="Get or set the power state.")
-    @_add_arg("--duration", default=0, arg_type=float, help_msg="Transition time in seconds.")
+    @_add_arg("hue", arg_type=float, nargs="?", help_msg="Hue (0-360).")
+    @_add_arg("saturation", arg_type=float, nargs="?", help_msg="Saturation (0-1).")
+    @_add_arg("brightness", arg_type=float, nargs="?", help_msg="Brightness (0-1).")
+    @_add_arg(
+        "kelvin",
+        arg_type=float,
+        nargs="?",
+        default=color.KELVIN,
+        help_msg="Kelvin color temperature.",
+    )
+    @_add_arg(
+        "duration",
+        nargs="?",
+        default=0,
+        arg_type=float,
+        help_msg="Transition time in seconds.",
+    )
     @_add_arg("--machine", arg_type=bool, help_msg="Return machine-readable string output.")
-    def _set_power(
-        self, *, label: str, state: Optional[str], duration: float, machine: bool
+    def _set_color(
+        self,
+        *,
+        label: str,
+        hue: Optional[float],
+        saturation: Optional[float],
+        brightness: Optional[float],
+        kelvin: int,
+        duration: float,
+        machine: bool,
     ) -> str:
         lifx_device = self._get_device_or_group(label)
-        if state == "state":
+
+        if any([hue is None, saturation is None, brightness is None]):
+            if isinstance(lifx_device, device_manager.DeviceGroup):
+                raise UnknownServerCommand("Cannot get color state of a device group.")
+            hsbk = lifx_device.get_color()
+        else:
+            hsbk = color.Hsbk.from_tuple((hue, saturation, brightness, kelvin))
+            lifx_device.set_color(hsbk, duration)
+
+        msg = ""
+        if machine:
+            msg = ""
+        else:
+            hsbk_str = "\n".join(
+                [
+                    f"hue: {hsbk.hue}",
+                    f"saturation: {hsbk.saturation}",
+                    f"brightness: {hsbk.brightness}",
+                    f"kelvin: {hsbk.kelvin}",
+                ]
+            )
+            if lifx_device == self._device_manager.root:
+                label = "Global"
+            msg = f"{label} color state:\n{hsbk_str}"
+        return msg
+
+    @_command("cmap", "Get or set the color of a device or group.")
+    @_add_arg("label", help_msg="Device or group to set power to.")
+    @_add_arg("colormap", arg_type=str, help_msg="Name of any matplotlib colormap.")
+    @_add_arg(
+        "duration",
+        nargs="?",
+        default=0,
+        arg_type=float,
+        help_msg="Transition time in seconds.",
+    )
+    @_add_arg(
+        "division",
+        nargs="?",
+        default=2,
+        arg_type=int,
+        help_msg="Number of divisions per square for tiles.",
+    )
+    def _set_colormap(
+        self,
+        *,
+        label: str,
+        colormap: str,
+        duration: float,
+        division: int,
+    ) -> str:
+        lifx_device = self._get_device_or_group(label)
+
+        if hasattr(lifx_device, "set_colormap"):
+            kwargs = {"cmap": colormap, "duration_s": duration}
+            if isinstance(lifx_device, (tile.LifxTile, device_manager.DeviceGroup)):
+                kwargs["division"] = division
+            lifx_device.set_colormap(**kwargs)
+            if lifx_device == self._device_manager.root:
+                label = "Global"
+            return f"{label} colormap: {colormap}"
+        else:
+            raise InvalidDeviceError(f"Device {label} does not support colormaps.")
+
+    @_command("power", "Get or set the power of a device or group.")
+    @_add_arg("label", help_msg="Device or group to set power to.")
+    @_add_arg("state", nargs="?", choices={"on", "off"}, help_msg="Set the power state.")
+    @_add_arg(
+        "duration",
+        nargs="?",
+        default=0,
+        arg_type=float,
+        help_msg="Transition time in seconds.",
+    )
+    @_add_arg("--machine", arg_type=bool, help_msg="Return machine-readable string output.")
+    def _set_power(
+        self,
+        *,
+        label: str,
+        state: Optional[str],
+        duration: float,
+        machine: bool,
+    ) -> str:
+        lifx_device = self._get_device_or_group(label)
+        if not state:
             if isinstance(lifx_device, device_manager.DeviceGroup):
                 raise UnknownServerCommand("Cannot get power state of a device group.")
             state = "on" if lifx_device.get_power() else "off"
         else:
             lifx_device.set_power(state == "on", duration)
 
+        if lifx_device == self._device_manager.root:
+            label = "Global"
         if machine:
             return "0" if state == "off" else "1"
-        elif lifx_device == self._device_manager._root_device_group:
-            return f"Powering all lights {state}."
         else:
             return f"{label} power state: {state}"
 

@@ -56,26 +56,43 @@ class DeviceManagerTest(unittest.TestCase):
             self.lifx_client,
         )
 
+    def test_set_color(self):
+        logging.info(self.run_cmd_get_response("color -h", self.lifx_client))
+        self.assertTrue(self.run_cmd_get_response("color all 300 0 0", self.lifx_client))
+        self.assertTrue(self.run_cmd_get_response("color device-a", self.lifx_client))
+        self.assertRaises(
+            server.UnknownServerCommand,
+            self.run_cmd_get_response,
+            "color all",
+            self.lifx_client,
+        )
+        # self.assertTrue(self.run_cmd_get_response("color device-a --machine", self.lifx_client))
+
+    def test_set_colormap(self):
+        logging.info(self.run_cmd_get_response("cmap -h", self.lifx_client))
+        self.assertTrue(self.run_cmd_get_response("cmap all cool", self.lifx_client))
+        self.assertRaises(
+            server.InvalidDeviceError,
+            self.run_cmd_get_response,
+            "cmap device-a cool",
+            self.lifx_client,
+        )
+        self.assertTrue(self.run_cmd_get_response("cmap device-d cool", self.lifx_client))
+
     def test_set_power(self):
-        logging.info(self.run_cmd_get_response("power -h", self.lifx_client))
-        logging.info(self.run_cmd_get_response("power all on", self.lifx_client))
-        response = self.run_cmd_get_response("power device-a state", self.lifx_client.send_recv)
+        self.assertTrue(self.run_cmd_get_response("power -h", self.lifx_client))
+        self.assertTrue(self.run_cmd_get_response("power all on", self.lifx_client))
+        response = self.run_cmd_get_response("power device-a", self.lifx_client.send_recv)
         self.assertIsNone(response.error)
         self.assertTrue(response.response.endswith(" on"))
 
         response = self.run_cmd_get_response(
-            "power device-a state --machine",
+            "power device-a --machine",
             self.lifx_client.send_recv,
         )
         self.assertIsNone(response.error)
         self.assertEqual(response.response, "1")
 
-        self.assertRaises(
-            server.CommandError,
-            self.run_cmd_get_response,
-            "power device-a",
-            self.lifx_client,
-        )
         self.assertRaises(
             server.CommandError,
             self.run_cmd_get_response,
@@ -91,7 +108,7 @@ class DeviceManagerTest(unittest.TestCase):
 
         logging.info(self.run_cmd_get_response("power group-a off", self.lifx_client))
         response = self.run_cmd_get_response(
-            "power device-a state --machine",
+            "power device-a --machine",
             self.lifx_client.send_recv,
         )
         self.assertIsNone(response.error)
@@ -100,7 +117,7 @@ class DeviceManagerTest(unittest.TestCase):
         self.assertRaises(
             server.UnknownServerCommand,
             self.run_cmd_get_response,
-            "power group-a state",
+            "power group-a",
             self.lifx_client,
         )
 

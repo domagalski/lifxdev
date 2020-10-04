@@ -60,6 +60,9 @@ class MockSocket:
                     tile["width"] = 8
                     tile["height"] = 8
                     message["tile_devices"][ii] = tile
+            elif name == "StateExtendedColorZones":
+                message["count"] = 32
+                message["colors_count"] = 32
             elif name == "StateService":
                 message["service"] = 1
                 message["port"] = packet.LIFX_PORT
