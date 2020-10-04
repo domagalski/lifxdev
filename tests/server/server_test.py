@@ -4,7 +4,6 @@ import logging
 import pathlib
 import unittest
 import threading
-import time
 from typing import Callable, Union
 
 import portpicker
@@ -29,15 +28,11 @@ class ServerTest(unittest.TestCase):
             process_config_path=PROCESS_CONFIG,
             comm=self.mock_socket,
         )
-        self.lifx_client = client.LifxClient(port=zmq_port)
+        self.lifx_client = client.LifxClient(port=zmq_port, timeout=5000)
 
     def testDown(self):
+        self.lifx_client.close()
         self.lifx_server.close()
-
-    def _start_server(self):
-        with self.lock:
-            self.server_online = True
-        self.lifx_server.recv_and_run()
 
     def run_cmd_get_response(
         self,
@@ -45,17 +40,8 @@ class ServerTest(unittest.TestCase):
         call_func: Callable,
     ) -> Union[str, server.ServerResponse]:
 
-        self.lock = threading.Lock()
-        self.server_online = False
-        server = threading.Thread(target=self._start_server)
+        server = threading.Thread(target=self.lifx_server.recv_and_run)
         server.start()
-
-        with self.lock:
-            server_online = self.server_online
-        while not server_online:
-            time.sleep(0.01)
-            with self.lock:
-                server_online = self.server_online
 
         try:
             response = call_func(cmd_str)

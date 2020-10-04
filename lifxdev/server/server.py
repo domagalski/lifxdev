@@ -174,7 +174,7 @@ class LifxServer:
             self._commands[cmd.label] = cmd
 
     def close(self) -> None:
-        self._zmq_socket.close()
+        self._zmq_socket.close(linger=0)
 
     def _get_device_or_group(self, label: str) -> Optional[Any]:
         """Get a LIFX device object or device group object by label.

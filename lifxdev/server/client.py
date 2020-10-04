@@ -3,6 +3,7 @@
 import logging
 import shlex
 import sys
+from typing import Tuple
 
 import click
 import zmq
@@ -18,7 +19,7 @@ class LifxClient:
     pre-defined LIFX processes.
     """
 
-    def __init__(self, ip: str = "localhost", port: int = server.SERVER_PORT, timeout: int = 1000):
+    def __init__(self, ip: str = "localhost", port: int = server.SERVER_PORT, timeout: int = -1):
         """Create a LIFX client
 
         Args:
@@ -28,7 +29,11 @@ class LifxClient:
         """
         self._zmq_socket = zmq.Context().socket(zmq.REQ)
         self._zmq_socket.setsockopt(zmq.RCVTIMEO, timeout)
+        self._zmq_socket.setsockopt(zmq.SNDTIMEO, timeout)
         self._zmq_socket.connect(f"tcp://{ip}:{port}")
+
+    def close(self) -> None:
+        self._zmq_socket.close(linger=0)
 
     def __call__(self, cmd_and_args: str) -> str:
         """Send a command to the server and log/raise a response message/error.
@@ -71,13 +76,13 @@ class LifxClient:
 @click.option(
     "-t",
     "--timeout",
-    default=1,
+    default=-1,
     type=float,
     show_default=True,
-    help="ZMQ Timeout in seconds.",
+    help="ZMQ Timeout in seconds. -1 disables the timeout",
 )
 @click.argument("cmd", nargs=-1)
-def main(ip: str, port: int, timeout: float, cmd: str):
+def main(ip: str, port: int, timeout: float, cmd: Tuple[str, ...]):
     """Control LIFX devices and processes."""
 
     logs.setup()
@@ -85,9 +90,17 @@ def main(ip: str, port: int, timeout: float, cmd: str):
         logging.error("Missing command!")
         sys.exit(1)
 
+    exit_code = 1
+    timeout = 5 if (len(cmd) == 1 and timeout == -1) else timeout
     cmd = " ".join([shlex.quote(word) for word in cmd])
     lifx = LifxClient(ip, port, timeout=-1 if timeout < 0 else int(timeout * 1000))
     try:
         logging.info(lifx(cmd))
+        exit_code = 0
+    except zmq.ZMQError:
+        logging.critical("Cannot communicate with LIFX server.")
     except Exception as e:
         logs.log_exception(e, logging.error)
+    finally:
+        lifx.close()
+    sys.exit(exit_code)
