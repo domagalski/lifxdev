@@ -1,0 +1,26 @@
+---
+PROC_DIR: .
+
+ongoing:
+  filename: ongoing.py
+  ongoing: true
+  devices:
+    - device-a
+    - device-b
+    - device-c
+
+oneshot:
+  filename: oneshot.py
+
+immortal:
+  filename: immortal.py
+  ongoing: true
+  immortal: true
+  devices:
+    - device-a
+    - device-b
+    - device-c
+
+failure:
+  filename: failure.py
+  ongoing: true

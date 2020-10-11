@@ -1,0 +1,21 @@
+---
+group-a:
+  type: group
+  devices:
+    group-b:
+      type: group
+      devices:
+        device-a:
+          type: light
+          ip: 127.0.0.1
+        device-b:
+          type: infrared
+          ip: 127.0.0.1
+
+device-c:
+  type: multizone
+  ip: 127.0.0.1
+
+device-d:
+  type: tile
+  ip: 127.0.0.1
