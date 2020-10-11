@@ -20,17 +20,17 @@ PROCESS_CONFIG = pathlib.Path(__file__).parent / "test_data" / "processes.yaml"
 
 class ServerTest(unittest.TestCase):
     def setUp(self):
-        zmq_port = portpicker.pick_unused_port()
+        self.zmq_port = portpicker.pick_unused_port()
         self.mock_socket = test_utils.MockSocket()
         self.lifx_server = server.LifxServer(
-            zmq_port,
+            self.zmq_port,
             device_config_path=DEVICE_CONFIG,
             process_config_path=PROCESS_CONFIG,
             comm=self.mock_socket,
         )
-        self.lifx_client = client.LifxClient(port=zmq_port, timeout=5000)
+        self.lifx_client = client.LifxClient(port=self.zmq_port, timeout=5000)
 
-    def testDown(self):
+    def tearDown(self):
         self.lifx_client.close()
         self.lifx_server.close()
 
@@ -60,11 +60,39 @@ class ServerTest(unittest.TestCase):
             self.lifx_client,
         )
 
+    def test_client(self):
+        self.assertRaises(
+            SystemExit,
+            self.run_cmd_get_response,
+            ["-p", str(self.zmq_port), "help"],
+            client.main,
+        )
+        self.assertRaises(
+            SystemExit,
+            client.main,
+            ["-p", str(self.zmq_port)],
+        )
+        self.assertRaises(
+            SystemExit,
+            self.run_cmd_get_response,
+            ["-p", str(self.zmq_port), "help", "help"],
+            client.main,
+        )
+
     def test_help_commands(self):
         self.assertIn("\n", self.run_cmd_get_response("help", self.lifx_client))
         self.assertIn("\n", self.run_cmd_get_response("devices", self.lifx_client))
         self.assertIn("\n", self.run_cmd_get_response("groups", self.lifx_client))
         self.assertIn("\n", self.run_cmd_get_response("cmap", self.lifx_client))
+
+    def test_reload_config(self):
+        self.assertIsNone(self.run_cmd_get_response("reload", self.lifx_client.send_recv).error)
+        self.assertIsNone(
+            self.run_cmd_get_response("reload device", self.lifx_client.send_recv).error
+        )
+        self.assertIsNone(
+            self.run_cmd_get_response("reload process", self.lifx_client.send_recv).error
+        )
 
     def test_set_color(self):
         logging.info(self.run_cmd_get_response("color -h", self.lifx_client))

@@ -193,12 +193,12 @@ class DeviceManager(device.LifxDevice):
         """Create a LIFX device manager.
 
         Args:
+            config_path: (str) Path to the device config. If None, do not load.
             buffer_size: (int) Buffer size for receiving UDP responses.
             timeout: (float) UDP response timeout.
             nonblock_delay: (float) Delay time to wait for messages when nonblocking.
             verbose: (bool) Use logging.info instead of logging.debug.
             comm: (socket) Optionally override the socket used for the device class.
-            config_path: (str) Path to the device config.
         """
         super().__init__(
             ip="255.255.255.255",
@@ -209,7 +209,7 @@ class DeviceManager(device.LifxDevice):
             comm=comm,
         )
 
-        self._config_path = config_path
+        self._config_path = None
         self._timeout = timeout
 
         # Load product identification
@@ -227,8 +227,9 @@ class DeviceManager(device.LifxDevice):
         self._root_device_group: Optional[DeviceGroup] = None
         if not config_path:
             return
-        if config_path.exists():
-            self.load_config(config_path)
+        self._config_path = pathlib.Path(config_path)
+        if self._config_path.exists():
+            self.load_config()
 
     @property
     def discovered(self) -> DeviceGroup:
@@ -378,13 +379,13 @@ class DeviceManager(device.LifxDevice):
         product["class"] = klass
         return product
 
-    def load_config(self, config_path: Union[str, pathlib.Path]) -> DeviceGroup:
+    def load_config(self, config_path: Optional[Union[str, pathlib.Path]] = None) -> None:
         """Load a config and populate device groups.
 
         Args:
             config_path: (str) Path to the device config.
         """
-        config_path = pathlib.Path(config_path)
+        config_path = pathlib.Path(config_path or self._config_path)
         with config_path.open() as f:
             config_dict = yaml.safe_load(f)
 

@@ -15,6 +15,7 @@ from lifxdev.colors import color
 from lifxdev.devices import device_manager
 from lifxdev.devices import tile
 from lifxdev.server import logs
+from lifxdev.server import process
 
 SERVER_PORT = 16384
 DOT_LIFX = pathlib.Path.home() / ".lifx"
@@ -163,6 +164,8 @@ class LifxServer:
             comm=comm,
         )
 
+        self._process_manager = process.ProcessManager(self._process_config_path)
+
         # Setup ZMQ
         self._zmq_socket = zmq.Context().socket(zmq.REP)
         self._zmq_socket.set
@@ -238,6 +241,39 @@ class LifxServer:
 
         msg_lines.append("")
         return "\n".join(msg_lines)
+
+    @_command("reload", "Reload device or process config.")
+    @_add_arg("config", nargs="?", choices={"device", "process"}, help_msg="The config to reload.")
+    def _reload_config(self, config: Optional[str]) -> str:
+        config_loaders = {
+            "device": {
+                "method": self._device_manager.load_config,
+                "args": (self._device_config_path,),
+            },
+            "process": {
+                "method": self._process_manager.load_config,
+                "args": (self._process_config_path,),
+            },
+        }
+
+        configs_to_load = set()
+        if config:
+            response = f"Successfully reloaded {config} config."
+            configs_to_load.add(config)
+        else:
+            response = "Successfully reloaded all configs."
+            for key in config_loaders:
+                configs_to_load.add(key)
+
+        for conf in configs_to_load:
+            logging.info(f"Reloading {conf} config.")
+            loader = config_loaders[conf]
+            method = loader["method"]
+            args = loader.get("args", tuple())
+            kwargs = loader.get("kwargs", dict())
+            method(*args, **kwargs)
+
+        return response
 
     @_command("devices", "Show every available device.")
     def _show_devices(self) -> str:
