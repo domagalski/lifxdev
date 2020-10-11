@@ -3,6 +3,7 @@
 import copy
 import pathlib
 import subprocess as spr
+import sys
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 import yaml
@@ -59,6 +60,10 @@ class Process:
         self._immortal = immortal if ongoing else False
 
     @property
+    def filename(self) -> pathlib.Path:
+        return self._filename
+
+    @property
     def label(self) -> str:
         return self._label
 
@@ -104,15 +109,19 @@ class Process:
         """
         # Processes that are already running can't be duplicated.
         if self._proc and self._ongoing:
-            raise ProcessRunningError(f"Process already running: {self._filename.name}")
+            raise ProcessRunningError(f"Process already running: {self._label}")
 
-        self._proc = spr.Popen(
-            [self._filename] + argv,
-            stdout=spr.PIPE,
-            stderr=spr.PIPE,
-            encoding="utf-8",
-        )
+        # Use the python executable running this for Process objects
+        cmd = []
+        if self._filename.name.endswith(".py"):
+            cmd.append(sys.executable)
+        cmd.append(self._filename)
+        cmd += argv
 
+        # Run the process
+        self._proc = spr.Popen(cmd, stdout=spr.PIPE, stderr=spr.PIPE, encoding="utf-8")
+
+        # Wait for the process to finish if not ongoing.
         if not self._ongoing:
             stdout, stderr = self._proc.communicate()
             self._proc = None
@@ -142,9 +151,13 @@ class ProcessManager:
     def load_config(self, config_path: Optional[Union[str, pathlib.Path]] = None) -> None:
         """Load a config and setup the process manager.
 
+        Any running process is stopped before a reload.
+
         Args:
             config_path: (str) Path to the device config.
         """
+        self.killall(kill_immortal=True)
+
         config_path = pathlib.Path(config_path or self._config_path)
         with config_path.open() as f:
             config_dict = yaml.safe_load(f)
@@ -184,10 +197,25 @@ class ProcessManager:
             failures[label] = process.check_failure()
         return failures
 
-    def killall(self) -> None:
+    def get_available_and_running(self) -> Tuple[List[Process], List[Process]]:
+        """Get all processes.
+
+        Returns:
+            dict(label: available_processes), dict(label: running_processes)
+        """
+        available_processes: List[Process] = []
+        running_processes: List[Process] = []
+        for process in self._all_processes.values():
+            if process.running:
+                running_processes.append(process)
+            else:
+                available_processes.append(process)
+        return available_processes, running_processes
+
+    def killall(self, kill_immortal: bool = False) -> None:
         """Kill all processes except immortal processes"""
         for process in self._all_processes.values():
-            if process.running and not process.immortal:
+            if not process.immortal:
                 process.stop()
 
     def restart(self, label: str, argv: List[str] = []) -> Optional[Tuple[str, str]]:

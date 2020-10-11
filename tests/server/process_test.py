@@ -15,6 +15,9 @@ class ProcessTest(unittest.TestCase):
     def setUp(self):
         self.process_manager = process.ProcessManager(PROCESS_CONFIG)
 
+    def tearDown(self):
+        self.process_manager.killall(kill_immortal=True)
+
     def test_check_failure(self):
         failure_detected = False
         label = "failure"
@@ -29,6 +32,15 @@ class ProcessTest(unittest.TestCase):
                 break
 
         self.assertTrue(failure_detected)
+
+    def test_get_avail_and_running(self):
+        label = "ongoing"
+        self.process_manager.start(label)
+
+        available, running = self.process_manager.get_available_and_running()
+        self.assertEqual(len(running), 1)
+
+        self.process_manager.stop(label)
 
     def test_immortal(self):
         label = "immortal"
