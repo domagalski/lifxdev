@@ -64,8 +64,7 @@ class LifxDevice:
         self,
         payload: packet.LifxMessage,
         *,
-        ack_required,
-        bool=True,
+        ack_required: bool = True,
         verbose: bool = False,
     ) -> Optional[packet.LifxResponse]:
         """Send a message to a device.
