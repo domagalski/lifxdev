@@ -25,13 +25,115 @@ network configurations accordingly.
 
 ## Usage
 
-Please see the configuration session, as it is required for running the scripts
-from the scripts directory.
+`lifxdev` can either be used as the server/client commands or via a Python
+module to control individual devices in scripts.
 
-The heart of `lifxdev` is the ZMQ interface used to manage scripts and
-change lights/strips. The script `lifx-server` initializes the ZMQ server that
-users can access to control processes and lights. The client command
-`lifx-client help` displays all available commands.
+### LIFX server usage
+
+To start the server, run `lifx-server`.
+
+Please see the configuration section for setting up the configuration files
+needed to use the server. The client command `lifx-client help` displays all
+available commands when the server is running. It is assumed that `lifx-server`
+is running in the following examples.
+
+#### Setting the color of all devices in a group
+
+The server device config must have a group called "living-room" for this.
+
+```
+lifx-client --ip $SERVER_IP color living-room 0 1 1 5500
+```
+
+#### Starting/stopping a process
+
+The server process config must have a process called "light-shuffle" for this.
+
+```
+# Start the process
+lifx-client --ip $SERVER_IP start light-shuffle
+
+# Verify that light-shuffle is a running process
+lifx-client --ip $SERVER_IP list
+
+# Check if any running processes have errors
+lifx-client --ip $SERVER_IP check
+
+# Start the process
+lifx-client --ip $SERVER_IP stop light-shuffle
+```
+
+Once a process is started, `start` cannot be called twice without error. If a
+process needs to be restarted, the `restart` command stops it before restarting
+it.
+
+### Usage as a Python module
+
+`lifxdev` is a series of Python modules. Module overview:
+
+- `lifxdev.colors`: Module for color operations used by devices.
+- `lifxdev.devices`: The main module for controlling LIFX devices. This is
+probably the most useful module. Lights, IR, MultiZone (beam/strip), and Tiles
+can be controlled via `lifxdev.devices`.
+- `lifxdev.messages`: LIFX control message generation.
+- `lifxdev.server`: LIFX server implementation.
+
+#### Controlling a bulb
+
+```python
+
+from lifxdev.devices import light
+
+bulb = light.LifxLight(device_ip, label="Lamp")
+bulb.set_power(True, duration_s=0)
+# Colors are (hue, saturation, brighness, kelvin)
+bulb.set_color((0, 1, 1, 5500), duration_s=0)
+```
+
+#### Controlling a light strip
+
+```python
+
+from lifxdev.devices import multizone
+
+strip = multizone.LifxMultiZone(device_ip, label="Light Strip")
+strip.set_power(True, duration_s=0)
+strip.set_color((0, 1, 1, 5500), duration_s=0)
+# color_list is a list of HSBK tuples
+strip.set_multizone(color_list, duration_s=0)
+# Any matplotlib colormap can be used.
+strip.set_colormap("cool", duration_s=0)
+```
+
+#### Getting devices via the DeviceManager
+
+The device manager is useful when controlling devices with known IP addresses,
+such as one's personal LIFX devices, as their configuration is unlikely to
+change.
+
+```python
+
+from lifxdev.devices import device_manager
+
+dm = device_manager.DeviceManager()
+bulb = dm.get_device(bulb_name)
+strip = dm.get_device(strip_name)
+tile = dm.get_device(tile_name)
+```
+
+#### Talking to a LIFX server
+
+Talking to a LIFX server from within a Python script is relatively
+straightforward and is useful for automating pre-configured processes.
+
+```python
+
+from lifxdev.server import client
+
+lifx = client.LifxClient(server_ip)
+# This either prints the response message or raises the server error.
+print(lifx("start light-shuffle"))
+```
 
 ## Configuration
 
