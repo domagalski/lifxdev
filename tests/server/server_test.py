@@ -4,12 +4,14 @@ import logging
 import pathlib
 import unittest
 import threading
+import time
 from typing import Callable, Union
 
 import portpicker
 
 from lifxdev.server import logs
 from lifxdev.server import client
+from lifxdev.server import process
 from lifxdev.server import server
 from lifxdev.messages import test_utils
 
@@ -31,6 +33,7 @@ class ServerTest(unittest.TestCase):
         self.lifx_client = client.LifxClient(port=self.zmq_port, timeout=5000)
 
     def tearDown(self):
+        self.assertTrue(self.run_cmd_get_response("killall", self.lifx_client))
         self.lifx_client.close()
         self.lifx_server.close()
 
@@ -84,6 +87,7 @@ class ServerTest(unittest.TestCase):
         self.assertIn("\n", self.run_cmd_get_response("devices", self.lifx_client))
         self.assertIn("\n", self.run_cmd_get_response("groups", self.lifx_client))
         self.assertIn("\n", self.run_cmd_get_response("cmap", self.lifx_client))
+        self.assertIn("\n", self.run_cmd_get_response("list", self.lifx_client))
 
     def test_reload_config(self):
         self.assertIsNone(self.run_cmd_get_response("reload", self.lifx_client.send_recv).error)
@@ -158,6 +162,55 @@ class ServerTest(unittest.TestCase):
             "power group-a",
             self.lifx_client,
         )
+
+    def test_start_stop(self):
+        self.assertTrue(self.run_cmd_get_response("start -h", self.lifx_client))
+        self.assertTrue(self.run_cmd_get_response("stop -h", self.lifx_client))
+
+        # Check that a process is running
+        self.assertIn(
+            "stderr:",
+            self.run_cmd_get_response("start oneshot", self.lifx_client.send_recv).response,
+        )
+        self.assertTrue(self.run_cmd_get_response("start ongoing", self.lifx_client))
+        self.assertIn(
+            "Running processes:",
+            self.run_cmd_get_response("list", self.lifx_client.send_recv).response,
+        )
+        self.assertTrue(self.run_cmd_get_response("stop ongoing", self.lifx_client))
+
+        # Try starting a process twice
+        self.assertTrue(self.run_cmd_get_response("start ongoing", self.lifx_client))
+        self.assertRaises(
+            process.ProcessRunningError,
+            self.run_cmd_get_response,
+            "start ongoing",
+            self.lifx_client,
+        )
+
+        # Restart a process, then stop it.
+        self.assertTrue(self.run_cmd_get_response("restart ongoing", self.lifx_client))
+        self.assertIn(
+            "No processes with errors",
+            self.run_cmd_get_response("check", self.lifx_client.send_recv).response,
+        )
+        self.assertTrue(self.run_cmd_get_response("stop ongoing", self.lifx_client))
+
+        # Detect errors
+        timeout = 5
+        sleep = 0.01
+        for cmd in ["list", "check"]:
+            self.assertTrue(self.run_cmd_get_response("start failure", self.lifx_client))
+            detected_failure = False
+            start = time.time()
+            while time.time() < start + timeout:
+                if "failure stderr" in self.run_cmd_get_response(cmd, self.lifx_client):
+                    detected_failure = True
+                    break
+                else:
+                    time.sleep(sleep)
+
+            self.assertTrue(detected_failure)
 
 
 if __name__ == "__main__":

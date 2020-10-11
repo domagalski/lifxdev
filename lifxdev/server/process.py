@@ -84,7 +84,7 @@ class Process:
     def immortal(self) -> bool:
         return self._immortal
 
-    def check_failure(self) -> Optional[Tuple[str, str]]:
+    def check_failure(self) -> Optional[Tuple[bool, str, str]]:
         """Check that a running processes is still running.
 
         Return:
@@ -98,14 +98,15 @@ class Process:
             return None
 
         stdout, stderr = self._proc.communicate()
+        errors = bool(self._proc.returncode)
         self._proc = None
-        return stdout, stderr
+        return errors, stdout, stderr
 
-    def start(self, argv: List[str] = []) -> Optional[Tuple[str, str]]:
+    def start(self, argv: List[str] = []) -> Optional[Tuple[bool, str, str]]:
         """Start the process
 
         Return:
-            If starting the process failed, return (stdout, stderr).
+            If starting the process failed, return (errors, stdout, stderr).
         """
         # Processes that are already running can't be duplicated.
         if self._proc and self._ongoing:
@@ -124,18 +125,18 @@ class Process:
         # Wait for the process to finish if not ongoing.
         if not self._ongoing:
             stdout, stderr = self._proc.communicate()
+            errors = bool(self._proc.returncode)
             self._proc = None
-            return stdout, stderr
+            return errors, stdout, stderr
 
-    def stop(self) -> Optional[Tuple[str, str]]:
+    def stop(self) -> None:
         """Stop the process"""
         if not self._proc:
             return
 
         self._proc.terminate()
-        stdout, stderr = self._proc.communicate()
+        self._proc.communicate()
         self._proc = None
-        return stdout, stderr
 
 
 class ProcessManager:
@@ -186,13 +187,13 @@ class ProcessManager:
     def has_process(self, label: str) -> bool:
         return label in self._all_processes
 
-    def check_failure(self) -> Dict[str, Optional[Tuple[str, str]]]:
+    def check_failures(self) -> Dict[str, Optional[Tuple[bool, str, str]]]:
         """Check all processes for failures.
 
         Returns:
             Return a dict with labels and check_failure() for each process
         """
-        failures: Dict[str, Optional[Tuple[str, str]]] = {}
+        failures: Dict[str, Optional[Tuple[bool, str, str]]] = {}
         for label, process in self._all_processes.items():
             failures[label] = process.check_failure()
         return failures
@@ -218,7 +219,7 @@ class ProcessManager:
             if not process.immortal:
                 process.stop()
 
-    def restart(self, label: str, argv: List[str] = []) -> Optional[Tuple[str, str]]:
+    def restart(self, label: str, argv: List[str] = []) -> Optional[Tuple[bool, str, str]]:
         """Start a process.
 
         Return:
@@ -227,7 +228,7 @@ class ProcessManager:
         self.stop(label)
         return self.start(label, argv)
 
-    def start(self, label: str, argv: List[str] = []) -> Optional[Tuple[str, str]]:
+    def start(self, label: str, argv: List[str] = []) -> Optional[Tuple[bool, str, str]]:
         """Start a process.
 
         Return:
@@ -253,7 +254,7 @@ class ProcessManager:
 
         return process.start(argv)
 
-    def stop(self, label: str) -> Optional[Tuple[str, str]]:
+    def stop(self, label: str) -> None:
         """Stop the process"""
         process = self._all_processes[label]
-        return process.stop()
+        process.stop()

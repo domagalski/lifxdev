@@ -447,6 +447,109 @@ class LifxServer:
         else:
             return f"{label} power state: {state}"
 
+    def _check_running_processes(self) -> Optional[str]:
+        """Check running processes for errors and construct a message"""
+        failures = self._process_manager.check_failures()
+        msg_lines = []
+        for label, failure in failures.items():
+            if failure:
+                if failure[1]:
+                    msg_lines.append(f"{label} stdout:")
+                    msg_lines.append(failure[1])
+                    msg_lines.append("")
+                if failure[2]:
+                    msg_lines.append(f"{label} stderr:")
+                    msg_lines.append(failure[2])
+                    msg_lines.append("")
+        if msg_lines:
+            msg_lines.insert(0, "Processes with errors:\n")
+            return "\n".join(msg_lines[:-1])
+
+    @_command("check", "Check running processes for failures.")
+    def _print_check(self) -> str:
+        msg = self._check_running_processes()
+        if msg:
+            return msg
+        else:
+            return "No processes with errors."
+
+    @_command("list", "List available and running processes.")
+    def _list_processes(self) -> str:
+        check_msg = self._check_running_processes()
+        if check_msg:
+            return check_msg
+
+        available, running = self._process_manager.get_available_and_running()
+        if not available and not running:
+            return "No available or running processes."
+
+        ljust = 24
+        tab = " " * 4
+        tab2 = 2 * tab
+        msg_lines = ["LIFX Processes\n"]
+        if available:
+            msg_lines.append(f"{tab}Available processes:")
+            for proc in sorted(available, key=lambda p: p.label):
+                msg_lines.append("".join([tab2, proc.label.ljust(ljust), proc.filename.name]))
+
+        if running:
+            if available:
+                msg_lines.append("")
+            msg_lines.append(f"{tab}Running processes:")
+            for proc in sorted(running, key=lambda p: p.label):
+                msg_lines.append("".join([tab2, proc.label.ljust(ljust), proc.filename.name]))
+
+        msg_lines.append("")
+        return "\n".join(msg_lines)
+
+    @_command("killall", "Kill all running processes.")
+    def _killall_processes(self) -> str:
+        self._process_manager.killall()
+        return "Killed all running processes."
+
+    @staticmethod
+    def _run_start_command(function: Callable, label: str, argv: List[str]) -> Optional[str]:
+        """Run a command to start a process"""
+        response = function(label, argv)
+        if response and response[0]:
+            msg_lines = [f"Process {label} failed to start.", ""]
+            if response[1]:
+                msg_lines.append("stdout:")
+                msg_lines.append(response[1])
+                msg_lines.append("")
+            if response[2]:
+                msg_lines.append("stderr:")
+                msg_lines.append(response[2])
+                msg_lines.append("")
+
+            return "\n".join(msg_lines[:-1])
+
+    @_command("start", "Start a LIFX process.")
+    @_add_arg("label", help_msg="Label of the process to start.")
+    @_add_arg("argv", nargs=argparse.REMAINDER, help_msg="Extra args to pass into the process.")
+    def _start_process(self, label: str, argv: List[str]) -> str:
+        msg = self._run_start_command(self._process_manager.start, label, argv)
+        if msg:
+            return msg
+        else:
+            return f"Started process: {label}"
+
+    @_command("restart", "Restart a LIFX process.")
+    @_add_arg("label", help_msg="Label of the process to restart.")
+    @_add_arg("argv", nargs=argparse.REMAINDER, help_msg="Extra args to pass into the process.")
+    def _restart_process(self, label: str, argv: List[str]) -> str:
+        msg = self._run_start_command(self._process_manager.restart, label, argv)
+        if msg:
+            return msg
+        else:
+            return f"Restarted process: {label}"
+
+    @_command("stop", "Stop a LIFX process.")
+    @_add_arg("label", help_msg="Label of the process to stop.")
+    def _stop_process(self, label: str) -> str:
+        self._process_manager.stop(label)
+        return f"Stopped process: {label}"
+
 
 @click.command()
 @click.option(

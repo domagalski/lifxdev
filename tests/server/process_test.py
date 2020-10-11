@@ -18,14 +18,14 @@ class ProcessTest(unittest.TestCase):
     def tearDown(self):
         self.process_manager.killall(kill_immortal=True)
 
-    def test_check_failure(self):
+    def test_check_failures(self):
         failure_detected = False
         label = "failure"
         self.process_manager.start(label)
 
         start = time.time()
         while time.time() < start + 5:
-            failures = self.process_manager.check_failure()
+            failures = self.process_manager.check_failures()
             time.sleep(0.01)
             if failures[label]:
                 failure_detected = True
@@ -61,7 +61,7 @@ class ProcessTest(unittest.TestCase):
 
         # Check oneshot commands aren't lingering.
         label = "oneshot"
-        _, stderr = self.process_manager.start(label)
+        _, _, stderr = self.process_manager.start(label)
         self.assertIn("exiting oneshot command", stderr)
         self.assertFalse(self.process_manager.get_process(label).running)
 
