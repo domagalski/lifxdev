@@ -6,7 +6,11 @@ LIFX device control over LAN
 Dependencies can be installed from the requirements file:
 
 ```
+# Requirements for the core library.
 pip install -r requirements.txt
+
+# Requirements for the testing/development.
+pip install -r requirements-dev.txt
 ```
 
 Once dependencies are installed, `lifxdev` can be installed normally:
@@ -27,6 +31,11 @@ network configurations accordingly.
 
 `lifxdev` can either be used as the server/client commands or via a Python
 module to control individual devices in scripts.
+
+The `lifx-dhcp-trigger.py` script is an example script built using the
+`lifxdev` API to control lights in response to DHCP connections reported by
+`dnsmasq`. See the DHCP trigger subsection in the configuration section for
+instructions on using it.
 
 ### LIFX server usage
 
@@ -209,3 +218,47 @@ is optional, determines whether `killall` commands can kill the process. If a
 script is a Python script, then the same Python executable used to run the LIFX
 server is used to run the script. If the script isn't a Python script, then
 it's run as is.
+
+### ~/.lifx/dhcp-trigger.yaml
+
+This is completely optional and only required when using the script
+`lifx-dhcp-trigger.py` in `dhcp-trigger`. The DHCP trigger script is not a part
+of the `lifxdev` API, but is built on top of it.
+
+The DHCP trigger script can be run as such:
+```
+cd dhcp-trigger
+python3 lifx-dhcp-trigger.py
+```
+
+This listens on a TCP port (default 16385) for messages with the format:
+```
+state mac_address ip_address
+```
+
+If the mac address is in the config, then a LIFX server command will be ran
+based on the configuration for it. Typically, I use the
+[Pi-Hole](https://pi-hole.net/) software as a `dnsmasq` server to generate
+these messages. To do this, the file `99-dhcp-script.conf` in `dhcp-trigger`
+must be placed in `/etc/dnsmasq.d` to configure the script used
+to process DHCP connections. The script `dhcp-lifx.sh` in `dhcp-trigger` must
+be placed wherever it is referenced by `99-dhcp-script.conf`. Those two files
+should probably be edited for one's unique setup.
+
+#### DHCP Trigger configuration
+
+The file `~/.lifx/dhcp-trigger.yaml` must be configured as follows:
+```
+<cmd_label>:
+  command: <lifx_server_command>
+  macs:
+    - <mac_addr_1>
+    - <mac_addr_2>
+    - ...
+```
+
+The `cmd_label` is any label to denote the name of a list of mac addresses and
+the LIFX server command to run when one of those MAC addresses is detected. As
+such, multiple command labels can be listed in a configuration file. The only
+real requirement is that there is a `command` field nested under each label
+containing a single LIFX server command.

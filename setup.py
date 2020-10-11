@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-# import glob
 import setuptools
 
 pkg_name = "lifxdev"
 setuptools.setup(
     name=pkg_name,
-    version="1.0.0",
+    version="1.0.1",
     description="LIFX device control over LAN.",
     author="Rachel Simone Domagalski",
     license="GPL",
