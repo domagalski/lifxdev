@@ -9,6 +9,9 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import yaml
 
 
+CONFIG_PATH = pathlib.Path.home() / ".lifx" / "processes.yaml"
+
+
 class DeviceConflictError(Exception):
     pass
 
@@ -142,7 +145,7 @@ class Process:
 class ProcessManager:
     """Manage pre-defined processes."""
 
-    def __init__(self, config_path: Union[str, pathlib.Path]):
+    def __init__(self, config_path: Union[str, pathlib.Path] = CONFIG_PATH):
         self._all_processes: Dict[str, Process] = {}
 
         self._config_path = pathlib.Path(config_path)

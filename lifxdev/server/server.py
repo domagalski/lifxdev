@@ -18,9 +18,8 @@ from lifxdev.server import logs
 from lifxdev.server import process
 
 SERVER_PORT = 16384
-DOT_LIFX = pathlib.Path.home() / ".lifx"
-DEVICE_CONFIG = pathlib.Path.home() / ".lifx" / "devices.yaml"
-PROCESS_CONFIG = pathlib.Path.home() / ".lifx" / "processes.yaml"
+DEVICE_CONFIG = device_manager.CONFIG_PATH
+PROCESS_CONFIG = process.CONFIG_PATH
 
 
 class CommandError(Exception):

@@ -182,7 +182,7 @@ class DeviceManager(device.LifxDevice):
 
     def __init__(
         self,
-        config_path: Optional[Union[str, pathlib.Path]] = None,
+        config_path: Union[str, pathlib.Path] = CONFIG_PATH,
         *,
         buffer_size: int = packet.BUFFER_SIZE,
         timeout: Optional[float] = packet.TIMEOUT,
@@ -193,7 +193,7 @@ class DeviceManager(device.LifxDevice):
         """Create a LIFX device manager.
 
         Args:
-            config_path: (str) Path to the device config. If None, do not load.
+            config_path: (str) Path to the device config. If non-existant, do not load.
             buffer_size: (int) Buffer size for receiving UDP responses.
             timeout: (float) UDP response timeout.
             nonblock_delay: (float) Delay time to wait for messages when nonblocking.
@@ -209,7 +209,6 @@ class DeviceManager(device.LifxDevice):
             comm=comm,
         )
 
-        self._config_path = None
         self._timeout = timeout
 
         # Load product identification
@@ -225,8 +224,6 @@ class DeviceManager(device.LifxDevice):
         # Load config sets the self._root_device_group variable
         self._discovered_device_group: Optional[DeviceGroup] = None
         self._root_device_group: Optional[DeviceGroup] = None
-        if not config_path:
-            return
         self._config_path = pathlib.Path(config_path)
         if self._config_path.exists():
             self.load_config()
