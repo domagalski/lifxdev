@@ -131,16 +131,22 @@ class DeviceGroup:
                 bulb.set_color(cmap_color, duration_s, ack_required=False)
 
         for strip in self._devices_by_type[DeviceType.multizone]:
-            strip.set_colormap(cmap, duration_s, kelvin=kelvin, ack_required=False)
+            try:
+                strip.set_colormap(cmap, duration_s, kelvin=kelvin, ack_required=False)
+            except packet.NoResponsesError:
+                continue
 
         for block in self._devices_by_type[DeviceType.tile]:
-            block.set_colormap(
-                cmap,
-                duration_s,
-                kelvin=kelvin,
-                division=division,
-                ack_required=False,
-            )
+            try:
+                block.set_colormap(
+                    cmap,
+                    duration_s,
+                    kelvin=kelvin,
+                    division=division,
+                    ack_required=False,
+                )
+            except packet.NoResponsesError:
+                continue
 
 
 # Convienence for validating type names in config files
