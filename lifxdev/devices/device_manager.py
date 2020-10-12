@@ -125,9 +125,10 @@ class DeviceGroup:
         """
         bulbs = self._devices_by_type[DeviceType.light]
         bulbs += self._devices_by_type[DeviceType.infrared]
-        bulb_cmap = color.get_colormap(cmap, len(bulbs), kelvin, randomize=True)
-        for bulb, cmap_color in zip(bulbs, bulb_cmap):
-            bulb.set_color(cmap_color, duration_s, ack_required=False)
+        if bulbs:
+            bulb_cmap = color.get_colormap(cmap, len(bulbs), kelvin, randomize=True)
+            for bulb, cmap_color in zip(bulbs, bulb_cmap):
+                bulb.set_color(cmap_color, duration_s, ack_required=False)
 
         for strip in self._devices_by_type[DeviceType.multizone]:
             strip.set_colormap(cmap, duration_s, kelvin=kelvin, ack_required=False)
