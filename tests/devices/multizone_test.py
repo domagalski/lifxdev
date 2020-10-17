@@ -24,7 +24,9 @@ class MultiZoneTest(unittest.TestCase):
         colors = [
             color.Hsbk(hue=20 * ii, saturation=1, brightness=1, kelvin=5500) for ii in range(16)
         ]
-        self.assertIsInstance(self.lifx.set_multizone(colors, 0), packet.LifxResponse)
+        self.assertIsInstance(
+            self.lifx.set_multizone(colors, ack_required=True), packet.LifxResponse
+        )
         recovered_colors = self.lifx.get_multizone()
         self.assertEqual(len(colors), len(recovered_colors))
         for original, recovered in zip(colors, recovered_colors):
@@ -33,7 +35,9 @@ class MultiZoneTest(unittest.TestCase):
             self.assertAlmostEqual(original.brightness, recovered.brightness)
             self.assertEqual(original.kelvin, recovered.kelvin)
 
-        self.assertIsInstance(self.lifx.set_colormap("cool", 0), packet.LifxResponse)
+        self.assertIsInstance(
+            self.lifx.set_colormap("cool", ack_required=True), packet.LifxResponse
+        )
 
 
 if __name__ == "__main__":

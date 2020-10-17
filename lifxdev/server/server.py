@@ -343,7 +343,7 @@ class LifxServer:
             hsbk = lifx_device.get_color()
         else:
             hsbk = color.Hsbk.from_tuple((hue, saturation, brightness, kelvin))
-            lifx_device.set_color(hsbk, duration)
+            lifx_device.set_color(hsbk, duration=duration)
 
         msg = ""
         if machine:
@@ -402,7 +402,7 @@ class LifxServer:
         # Set the colormap
         lifx_device = self._get_device_or_group(label)
         if hasattr(lifx_device, "set_colormap"):
-            kwargs = {"cmap": colormap, "duration_s": duration}
+            kwargs = {"cmap": colormap, "duration": duration}
             if isinstance(lifx_device, (tile.LifxTile, device_manager.DeviceGroup)):
                 kwargs["division"] = division
             lifx_device.set_colormap(**kwargs)
@@ -437,7 +437,7 @@ class LifxServer:
                 raise UnknownServerCommand("Cannot get power state of a device group.")
             state = "on" if lifx_device.get_power() else "off"
         else:
-            lifx_device.set_power(state == "on", duration)
+            lifx_device.set_power(state == "on", duration=duration)
 
         if lifx_device == self._device_manager.root:
             label = "Global"

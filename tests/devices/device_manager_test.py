@@ -89,7 +89,7 @@ class DeviceManagerTest(unittest.TestCase):
 
     def test_set_color(self):
         hsbk = color.Hsbk(hue=300, saturation=1, brightness=1, kelvin=5500)
-        self.lifx.root.set_color(hsbk, 0)
+        self.lifx.root.set_color(hsbk)
         for device in self.lifx.get_all_devices().values():
             device_hsbk = device.get_color()
             self.assertEqual(round(device_hsbk.hue), round(hsbk.hue))
@@ -101,16 +101,16 @@ class DeviceManagerTest(unittest.TestCase):
         colors = [color.Hsbk.from_tuple((0, 0, 1, 5500)) for _ in range(16)]
         for device in self.lifx.get_all_devices().values():
             if isinstance(device, multizone.LifxMultiZone):
-                device.set_multizone(colors, 0)
+                device.set_multizone(colors)
 
-        self.lifx.root.set_colormap("hsv", 0)
+        self.lifx.root.set_colormap("hsv")
         for device in self.lifx.get_all_devices().values():
             if not isinstance(device, (multizone.LifxMultiZone, tile.LifxTile)):
                 hsbk = device.get_color()
                 self.assertGreaterEqual(hsbk.brightness, 0.975)
 
     def test_set_power(self):
-        self.lifx.root.set_power(True, 0)
+        self.lifx.root.set_power(True)
         for device in self.lifx.get_all_devices().values():
             self.assertTrue(device.get_power())
 

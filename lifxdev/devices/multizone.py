@@ -37,42 +37,42 @@ class LifxMultiZone(light.LifxLight):
     def set_colormap(
         self,
         cmap: Union[str, colors.Colormap],
-        duration_s: float,
         *,
+        duration: float = 0.0,
         kelvin: int = color.KELVIN,
-        ack_required: bool = True,
+        ack_required: bool = False,
     ) -> Optional[packet.LifxResponse]:
         """Set the zone to a matplotlib colormap.
 
         Args:
             cmap_name: (str) Name or object of a matplotlib colormap.
-            duration_s: (float) The time in seconds to make the color transition.
+            duration: (float) The time in seconds to make the color transition.
             kelvin: Color temperature of white colors in the colormap.
             ack_required: (bool) True gets an acknowledgement from the device.
         """
         num_zones = self.get_num_zones()
         colormap = color.get_colormap(cmap, num_zones, kelvin)
-        return self.set_multizone(colormap, duration_s, ack_required=ack_required)
+        return self.set_multizone(colormap, duration=duration, ack_required=ack_required)
 
     def set_multizone(
         self,
         multizone_colors: List[color.Hsbk],
-        duration_s: float,
         *,
+        duration: float = 0.0,
         index: int = 0,
-        ack_required: bool = True,
+        ack_required: bool = False,
     ) -> Optional[packet.LifxResponse]:
         """Set the MultiZone colors.
 
         Args:
             multizone_colors: (list) A list of human-readable HSBK tuples to set.
-            duration_s: (float) The time in seconds to make the color transition.
+            duration: (float) The time in seconds to make the color transition.
             index: (int) MultiZone starting position of the first element of colors.
             ack_required: (bool) True gets an acknowledgement from the device.
         """
         set_colors = multizone_messages.SetExtendedColorZones()
         set_colors["apply"] = multizone_messages.ApplicationRequest.APPLY
-        set_colors["duration"] = int(duration_s * 1000)
+        set_colors["duration"] = int(duration * 1000)
         set_colors["index"] = index
         set_colors["colors_count"] = len(multizone_colors)
         for ii, hsbk in enumerate(multizone_colors):

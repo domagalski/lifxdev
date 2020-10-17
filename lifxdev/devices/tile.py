@@ -52,17 +52,17 @@ class LifxTile(light.LifxLight):
     def set_colormap(
         self,
         cmap: Union[str, colors.Colormap],
-        duration_s: float,
         *,
+        duration: float = 0.0,
         kelvin: int = color.KELVIN,
         division: int = 2,
-        ack_required: bool = True,
+        ack_required: bool = False,
     ) -> Optional[packet.LifxResponse]:
         """Set the tile chain to a matplotlib colormap.
 
         Args:
             cmap_name: (str) Name or object of a matplotlib colormap.
-            duration_s: (float) The time in seconds to make the color transition.
+            duration: (float) The time in seconds to make the color transition.
             kelvin: Color temperature of white colors in the colormap.
             division: How much to subdivide the tiles (must be in [1, 2, 4]).
             ack_required: (bool) True gets an acknowledgement from the device.
@@ -91,7 +91,7 @@ class LifxTile(light.LifxLight):
             response = self.set_tile_colors(
                 ii,
                 colors_per_tile,
-                duration_s,
+                duration=duration,
                 ack_required=ack_required,
             )
         return response
@@ -100,23 +100,23 @@ class LifxTile(light.LifxLight):
         self,
         tile_index: int,
         tile_colors: List[color.Hsbk],
-        duration_s: float,
         *,
+        duration: float = 0.0,
         length: int = 1,
-        ack_required: bool = True,
+        ack_required: bool = False,
     ) -> Optional[packet.LifxResponse]:
         """Set the tile colors
 
         Args:
             tile_index: (int) The tile index in the chain to query.
             tile_colors: List of colors to set the tile(s) to.
-            duration_s: (float) The time in seconds to make the color transition.
+            duration: (float) The time in seconds to make the color transition.
             length: (int) The number of tiles to query.
             ack_required: (bool) True gets an acknowledgement from the device.
         """
         set_request = tile_messages.SetTileState64(width=TILE_WIDTH)
         set_request["tile_index"] = tile_index
         set_request["length"] = length
-        set_request["duration"] = int(duration_s * 1000)
+        set_request["duration"] = int(duration * 1000)
         set_request["colors"] = [color.Hsbk.from_tuple(hsbk).to_packet() for hsbk in tile_colors]
         return self.send_msg(set_request, ack_required=ack_required)

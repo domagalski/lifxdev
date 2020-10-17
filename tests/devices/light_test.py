@@ -22,7 +22,7 @@ class LightTest(unittest.TestCase):
 
     def test_set_color(self):
         hsbk = color.Hsbk(hue=300, saturation=1, brightness=1, kelvin=5500)
-        self.assertIsNotNone(self.lifx.set_color(hsbk, 0))
+        self.assertIsNotNone(self.lifx.set_color(hsbk, ack_required=True))
         response = self.lifx.get_color()
         self.assertAlmostEqual(round(hsbk.hue), round(response.hue))
         self.assertAlmostEqual(hsbk.saturation, response.saturation)
@@ -30,12 +30,12 @@ class LightTest(unittest.TestCase):
         self.assertEqual(hsbk.kelvin, response.kelvin)
 
     def test_set_infrared(self):
-        self.assertIsInstance(self.lifx.set_infrared(1.0), packet.LifxResponse)
+        self.assertIsInstance(self.lifx.set_infrared(1.0, ack_required=True), packet.LifxResponse)
         ir_level = self.lifx.get_infrared()
         self.assertAlmostEqual(ir_level, 1.0)
 
     def test_set_power(self):
-        self.assertIsInstance(self.lifx.set_power(True, 0), packet.LifxResponse)
+        self.assertIsInstance(self.lifx.set_power(True, ack_required=True), packet.LifxResponse)
         self.assertTrue(self.lifx.get_power())
 
 

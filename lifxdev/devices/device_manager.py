@@ -86,32 +86,32 @@ class DeviceGroup:
     def has_group(self, name: str) -> bool:
         return name in self._all_groups
 
-    def set_color(self, hsbk: light.COLOR_T, duration_s: float) -> None:
+    def set_color(self, hsbk: light.COLOR_T, *, duration: float = 0.0) -> None:
         """Set the color of all lights in the device group.
 
         Args:
             hsbk: (color.Hsbk) Human-readable HSBK tuple.
-            duration_s: (float) The time in seconds to make the color transition.
+            duration: (float) The time in seconds to make the color transition.
         """
 
         for target in self._all_devices.values():
-            target.set_color(hsbk, duration_s, ack_required=False)
+            target.set_color(hsbk, duration=duration, ack_required=False)
 
-    def set_power(self, state: bool, duration_s: float) -> None:
+    def set_power(self, state: bool, *, duration: float = 0.0) -> None:
         """Set power state on all lights in the device group.
 
         Args:
             state: (bool) True powers on the light. False powers it off.
-            duration_s: (float) The time in seconds to make the color transition.
+            duration: (float) The time in seconds to make the color transition.
         """
         for target in self._all_devices.values():
-            target.set_power(state, duration_s, ack_required=False)
+            target.set_power(state, duration=duration, ack_required=False)
 
     def set_colormap(
         self,
         cmap: Union[str, color.colors.Colormap],
-        duration_s: float,
         *,
+        duration: float = 0.0,
         kelvin: int = color.KELVIN,
         division: int = 2,
     ) -> None:
@@ -119,7 +119,7 @@ class DeviceGroup:
 
         Args:
             cmap_name: (str) Name or object of a matplotlib colormap.
-            duration_s: (float) The time in seconds to make the color transition.
+            duration: (float) The time in seconds to make the color transition.
             kelvin: Color temperature of white colors in the colormap.
             division: How much to subdivide the tiles (must be in [1, 2, 4]).
         """
@@ -128,11 +128,11 @@ class DeviceGroup:
         if bulbs:
             bulb_cmap = color.get_colormap(cmap, len(bulbs), kelvin, randomize=True)
             for bulb, cmap_color in zip(bulbs, bulb_cmap):
-                bulb.set_color(cmap_color, duration_s, ack_required=False)
+                bulb.set_color(cmap_color, duration=duration, ack_required=False)
 
         for strip in self._devices_by_type[DeviceType.multizone]:
             try:
-                strip.set_colormap(cmap, duration_s, kelvin=kelvin, ack_required=False)
+                strip.set_colormap(cmap, duration=duration, kelvin=kelvin, ack_required=False)
             except packet.NoResponsesError:
                 continue
 
@@ -140,7 +140,7 @@ class DeviceGroup:
             try:
                 block.set_colormap(
                     cmap,
-                    duration_s,
+                    duration=duration,
                     kelvin=kelvin,
                     division=division,
                     ack_required=False,

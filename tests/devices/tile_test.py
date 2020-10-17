@@ -32,7 +32,9 @@ class MultiZoneTest(unittest.TestCase):
             color.Hsbk(hue=5 * ii, saturation=1, brightness=1, kelvin=5500)
             for ii in range(tile.TILE_WIDTH ** 2)
         ]
-        self.assertIsInstance(self.lifx.set_tile_colors(0, colors, 0), packet.LifxResponse)
+        self.assertIsInstance(
+            self.lifx.set_tile_colors(0, colors, ack_required=True), packet.LifxResponse
+        )
         recovered_colors = self.lifx.get_tile_colors(0)[0]
 
         self.assertEqual(len(colors), len(recovered_colors))
@@ -42,7 +44,9 @@ class MultiZoneTest(unittest.TestCase):
             self.assertAlmostEqual(original.brightness, recovered.brightness)
             self.assertEqual(original.kelvin, recovered.kelvin)
 
-        self.assertIsInstance(self.lifx.set_colormap("cool", 0), packet.LifxResponse)
+        self.assertIsInstance(
+            self.lifx.set_colormap("cool", ack_required=True), packet.LifxResponse
+        )
 
 
 if __name__ == "__main__":
