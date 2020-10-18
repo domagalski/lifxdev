@@ -28,7 +28,8 @@ class ProcessTest(unittest.TestCase):
             failures = self.process_manager.check_failures()
             time.sleep(0.01)
             if failures[label]:
-                failure_detected = True
+                _, stderr = failures[label]
+                failure_detected = "CommandError: command failed" in stderr
                 break
 
         self.assertTrue(failure_detected)
@@ -61,8 +62,7 @@ class ProcessTest(unittest.TestCase):
 
         # Check oneshot commands aren't lingering.
         label = "oneshot"
-        _, _, stderr = self.process_manager.start(label)
-        self.assertIn("exiting oneshot command", stderr)
+        self.process_manager.start(label)
         self.assertFalse(self.process_manager.get_process(label).running)
 
         # Check conflicts

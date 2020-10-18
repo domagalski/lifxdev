@@ -24,3 +24,7 @@ immortal:
 failure:
   filename: failure.py
   ongoing: true
+
+start-another:
+  filename: start_another.py
+  ongoing: false

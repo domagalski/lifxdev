@@ -167,7 +167,6 @@ class LifxServer:
 
         # Setup ZMQ
         self._zmq_socket = zmq.Context().socket(zmq.REP)
-        self._zmq_socket.set
         self._zmq_socket.bind(f"tcp://*:{server_port}")
 
         # Set the command registry
@@ -452,13 +451,13 @@ class LifxServer:
         msg_lines = []
         for label, failure in failures.items():
             if failure:
-                if failure[1]:
+                if failure[0].strip():
                     msg_lines.append(f"{label} stdout:")
-                    msg_lines.append(failure[1])
+                    msg_lines.append(failure[0].strip())
                     msg_lines.append("")
-                if failure[2]:
+                if failure[1].strip():
                     msg_lines.append(f"{label} stderr:")
-                    msg_lines.append(failure[2])
+                    msg_lines.append(failure[1].strip())
                     msg_lines.append("")
         if msg_lines:
             msg_lines.insert(0, "Processes with errors:\n")
@@ -506,42 +505,19 @@ class LifxServer:
         self._process_manager.killall()
         return "Killed all running processes."
 
-    @staticmethod
-    def _run_start_command(function: Callable, label: str, argv: List[str]) -> Optional[str]:
-        """Run a command to start a process"""
-        response = function(label, argv)
-        if response and response[0]:
-            msg_lines = [f"Process {label} failed to start.", ""]
-            if response[1]:
-                msg_lines.append("stdout:")
-                msg_lines.append(response[1])
-                msg_lines.append("")
-            if response[2]:
-                msg_lines.append("stderr:")
-                msg_lines.append(response[2])
-                msg_lines.append("")
-
-            return "\n".join(msg_lines[:-1])
-
     @_command("start", "Start a LIFX process.")
     @_add_arg("label", help_msg="Label of the process to start.")
     @_add_arg("argv", nargs=argparse.REMAINDER, help_msg="Extra args to pass into the process.")
     def _start_process(self, label: str, argv: List[str]) -> str:
-        msg = self._run_start_command(self._process_manager.start, label, argv)
-        if msg:
-            return msg
-        else:
-            return f"Started process: {label}"
+        self._process_manager.start(label, argv)
+        return f"Started process: {label}"
 
     @_command("restart", "Restart a LIFX process.")
     @_add_arg("label", help_msg="Label of the process to restart.")
     @_add_arg("argv", nargs=argparse.REMAINDER, help_msg="Extra args to pass into the process.")
     def _restart_process(self, label: str, argv: List[str]) -> str:
-        msg = self._run_start_command(self._process_manager.restart, label, argv)
-        if msg:
-            return msg
-        else:
-            return f"Restarted process: {label}"
+        self._process_manager.restart(label, argv)
+        return f"Restarted process: {label}"
 
     @_command("stop", "Stop a LIFX process.")
     @_add_arg("label", help_msg="Label of the process to stop.")

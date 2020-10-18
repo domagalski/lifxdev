@@ -87,7 +87,7 @@ class Process:
     def immortal(self) -> bool:
         return self._immortal
 
-    def check_failure(self) -> Optional[Tuple[bool, str, str]]:
+    def check_failure(self) -> Optional[Tuple[str, str]]:
         """Check that a running processes is still running.
 
         Return:
@@ -101,19 +101,20 @@ class Process:
             return None
 
         stdout, stderr = self._proc.communicate()
-        errors = bool(self._proc.returncode)
+        returncode = self._proc.returncode
         self._proc = None
-        return errors, stdout, stderr
+        if returncode:
+            return stdout, stderr
 
-    def start(self, argv: List[str] = []) -> Optional[Tuple[bool, str, str]]:
-        """Start the process
-
-        Return:
-            If starting the process failed, return (errors, stdout, stderr).
-        """
+    def start(self, argv: List[str] = []) -> None:
+        """Start the process"""
         # Processes that are already running can't be duplicated.
-        if self._proc and self._ongoing:
-            raise ProcessRunningError(f"Process already running: {self._label}")
+        # If the process, however, is not ongoing, cleanly stop before restarting.
+        if self._proc:
+            if self._ongoing:
+                raise ProcessRunningError(f"Process already running: {self._label}")
+            else:
+                self.stop()
 
         # Use the python executable running this for Process objects
         cmd = []
@@ -122,22 +123,17 @@ class Process:
         cmd.append(self._filename)
         cmd += argv
 
-        # Run the process
+        # Run the process.
+        # Do not stop oneshot (non-ongoing processes). The ProcessManager handles that.
         self._proc = spr.Popen(cmd, stdout=spr.PIPE, stderr=spr.PIPE, encoding="utf-8")
-
-        # Wait for the process to finish if not ongoing.
-        if not self._ongoing:
-            stdout, stderr = self._proc.communicate()
-            errors = bool(self._proc.returncode)
-            self._proc = None
-            return errors, stdout, stderr
 
     def stop(self) -> None:
         """Stop the process"""
         if not self._proc:
             return
 
-        self._proc.terminate()
+        if self._ongoing:
+            self._proc.terminate()
         self._proc.communicate()
         self._proc = None
 
@@ -185,18 +181,22 @@ class ProcessManager:
             self._all_processes[label] = Process(label, filename, **config)
 
     def get_process(self, label: str) -> Process:
-        return self._all_processes[label]
+        """Get a process. If non-ongoing, make sure it's stopped first"""
+        proc = self._all_processes[label]
+        if not proc.ongoing:
+            proc.stop()
+        return proc
 
     def has_process(self, label: str) -> bool:
         return label in self._all_processes
 
-    def check_failures(self) -> Dict[str, Optional[Tuple[bool, str, str]]]:
+    def check_failures(self) -> Dict[str, Optional[Tuple[str, str]]]:
         """Check all processes for failures.
 
         Returns:
             Return a dict with labels and check_failure() for each process
         """
-        failures: Dict[str, Optional[Tuple[bool, str, str]]] = {}
+        failures: Dict[str, Optional[Tuple[str, str]]] = {}
         for label, process in self._all_processes.items():
             failures[label] = process.check_failure()
         return failures
@@ -209,7 +209,8 @@ class ProcessManager:
         """
         available_processes: List[Process] = []
         running_processes: List[Process] = []
-        for process in self._all_processes.values():
+        for label in self._all_processes:
+            process = self.get_process(label)
             if process.running:
                 running_processes.append(process)
             else:
@@ -222,16 +223,16 @@ class ProcessManager:
             if not process.immortal:
                 process.stop()
 
-    def restart(self, label: str, argv: List[str] = []) -> Optional[Tuple[bool, str, str]]:
+    def restart(self, label: str, argv: List[str] = []) -> None:
         """Start a process.
 
         Return:
             If starting the process failed, return (stdout, stderr).
         """
         self.stop(label)
-        return self.start(label, argv)
+        self.start(label, argv)
 
-    def start(self, label: str, argv: List[str] = []) -> Optional[Tuple[bool, str, str]]:
+    def start(self, label: str, argv: List[str] = []) -> None:
         """Start a process.
 
         Return:
@@ -255,7 +256,7 @@ class ProcessManager:
             conflicts = ", ".join(union)
             raise DeviceConflictError(f"Devices in use: {conflicts}")
 
-        return process.start(argv)
+        process.start(argv)
 
     def stop(self, label: str) -> None:
         """Stop the process"""

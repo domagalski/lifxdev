@@ -168,10 +168,6 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(self.run_cmd_get_response("stop -h", self.lifx_client))
 
         # Check that a process is running
-        self.assertIn(
-            "stderr:",
-            self.run_cmd_get_response("start oneshot", self.lifx_client.send_recv).response,
-        )
         self.assertTrue(self.run_cmd_get_response("start ongoing", self.lifx_client))
         self.assertIn(
             "Running processes:",
