@@ -18,6 +18,7 @@ from lifxdev.server import logs
 from lifxdev.server import process
 
 SERVER_PORT = 16384
+SERVER_TIMEOUT = 60000
 DEVICE_CONFIG = device_manager.CONFIG_PATH
 PROCESS_CONFIG = process.CONFIG_PATH
 
@@ -140,6 +141,7 @@ class LifxServer:
         *,
         device_config_path: Union[str, pathlib.Path] = DEVICE_CONFIG,
         process_config_path: Union[str, pathlib.Path] = PROCESS_CONFIG,
+        timeout: int = SERVER_TIMEOUT,
         verbose: bool = True,
         comm: Optional[socket.socket] = None,
     ):
@@ -149,6 +151,7 @@ class LifxServer:
             server_port: (int) The TCP port to listen on.
             device_config_path: (str) Path to device config.
             process_config_path: (str) Path to process config.
+            timeout: (int) Max time in ms to wait to receive a command.
             verbose: (bool) Log to INFO instead of DEBUG.
             comm: (socket) Override the default UDB socket object.
         """
@@ -167,7 +170,10 @@ class LifxServer:
 
         # Setup ZMQ
         self._zmq_socket = zmq.Context().socket(zmq.REP)
+        self._zmq_socket.setsockopt(zmq.RCVTIMEO, timeout)
+        self._zmq_socket.setsockopt(zmq.SNDTIMEO, timeout)
         self._zmq_socket.bind(f"tcp://*:{server_port}")
+        self._last_wait_timeout = False
 
         # Set the command registry
         self._commands: Dict[str, Callable] = {}
@@ -194,8 +200,14 @@ class LifxServer:
 
     def recv_and_run(self) -> None:
         """Receive a command over ZMQ, run it, and send back the result string."""
-        logging.info("Waiting for command...")
-        cmd_args = shlex.split(self._zmq_socket.recv_string())
+        if not self._last_wait_timeout:
+            logging.info("Waiting for command...")
+        try:
+            cmd_args = shlex.split(self._zmq_socket.recv_string())
+            self._last_wait_timeout = False
+        except zmq.ZMQError:
+            self._last_wait_timeout = True
+            return
         cmd_label = cmd_args.pop(0)
 
         cmd = self._commands.get(cmd_label)
@@ -555,7 +567,15 @@ class LifxServer:
     is_flag=True,
     help="Suppress INFO logs to DEBUG.",
 )
-def main(port: int, device_config: str, process_config, quiet: bool):
+@click.option(
+    "-t",
+    "--timeout",
+    default=SERVER_TIMEOUT,
+    type=int,
+    show_default=True,
+    help="ZMQ Timeout in milliseconds. -1 disables the timeout",
+)
+def main(port: int, device_config: str, process_config, quiet: bool, timeout: int):
     logs.setup()
 
     lifx = LifxServer(

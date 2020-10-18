@@ -29,6 +29,7 @@ class ServerTest(unittest.TestCase):
             device_config_path=DEVICE_CONFIG,
             process_config_path=PROCESS_CONFIG,
             comm=self.mock_socket,
+            timeout=5000,
         )
         self.lifx_client = client.LifxClient(port=self.zmq_port, timeout=5000)
 
