@@ -19,18 +19,26 @@ class LifxClient:
     pre-defined LIFX processes.
     """
 
-    def __init__(self, ip: str = "localhost", port: int = server.SERVER_PORT, timeout: int = -1):
+    def __init__(
+        self,
+        ip: str = "localhost",
+        port: int = server.SERVER_PORT,
+        timeout: int = -1,
+        connect: bool = True,
+    ):
         """Create a LIFX client
 
         Args:
             ip: (str) The IP address to connect to.
             port: (int) The TCP port to connect to.
             timeout: (int) ZMQ timeout in milliseconds. -1 means no timeout.
+            connect: (bool) Connect to the ZMQ socket on init.
         """
         self._zmq_addr = f"tcp://{ip}:{port}"
         self._zmq_socket = None
         self._timeout = timeout
-        self.connect()
+        if connect:
+            self.connect()
 
     def connect(self) -> None:
         """Connect to the ZMQ socket"""
