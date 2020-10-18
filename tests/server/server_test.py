@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import json
 import logging
 import pathlib
 import unittest
@@ -212,6 +213,18 @@ class ServerTest(unittest.TestCase):
             self.run_cmd_get_response("check", self.lifx_client.send_recv).response,
         )
         self.assertTrue(self.run_cmd_get_response("stop ongoing", self.lifx_client))
+
+        # check machine-readable list
+        self.assertTrue(self.run_cmd_get_response("start oneshot", self.lifx_client))
+        running = json.loads(self.run_cmd_get_response("list --machine", self.lifx_client))[
+            "running"
+        ]
+        self.assertIn("oneshot", running)
+        self.assertTrue(self.run_cmd_get_response("list", self.lifx_client))
+        available = json.loads(self.run_cmd_get_response("list --machine", self.lifx_client))[
+            "available"
+        ]
+        self.assertIn("oneshot", available)
 
         # Detect errors
         timeout = 5

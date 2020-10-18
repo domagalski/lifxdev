@@ -2,6 +2,7 @@
 
 import argparse
 import inspect
+import json
 import logging
 import pathlib
 import shlex
@@ -495,12 +496,27 @@ class LifxServer:
             return "No processes with errors."
 
     @_command("list", "List available and running processes.")
-    def _list_processes(self) -> str:
-        check_msg = self._check_running_processes()
-        if check_msg:
-            return check_msg
+    @_add_arg("--machine", arg_type=bool, help_msg="Return machine-readable string output.")
+    def _list_processes(self, machine: bool) -> str:
+        if not machine:
+            check_msg = self._check_running_processes()
+            if check_msg:
+                return check_msg
 
-        available, running = self._process_manager.get_available_and_running()
+        # Assume possibly running from within a lifx process if requesting machine-readable
+        # If within a lifx process, possible that process could be a one-shot. In that case,
+        # it should be able to view itself in the process list from within itself.
+        available, running = self._process_manager.get_available_and_running(
+            stop_oneshot=not machine
+        )
+        if machine:
+            return json.dumps(
+                {
+                    "available": [p.label for p in available],
+                    "running": [p.label for p in running],
+                }
+            )
+
         if not available and not running:
             return "No available or running processes."
 

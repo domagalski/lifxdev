@@ -180,10 +180,10 @@ class ProcessManager:
 
             self._all_processes[label] = Process(label, filename, **config)
 
-    def get_process(self, label: str) -> Process:
+    def get_process(self, label: str, *, stop_oneshot: bool = True) -> Process:
         """Get a process. If non-ongoing, make sure it's stopped first"""
         proc = self._all_processes[label]
-        if not proc.ongoing:
+        if not proc.ongoing and stop_oneshot:
             proc.stop()
         return proc
 
@@ -201,7 +201,9 @@ class ProcessManager:
             failures[label] = process.check_failure()
         return failures
 
-    def get_available_and_running(self) -> Tuple[List[Process], List[Process]]:
+    def get_available_and_running(
+        self, *, stop_oneshot: bool = True
+    ) -> Tuple[List[Process], List[Process]]:
         """Get all processes.
 
         Returns:
@@ -210,7 +212,7 @@ class ProcessManager:
         available_processes: List[Process] = []
         running_processes: List[Process] = []
         for label in self._all_processes:
-            process = self.get_process(label)
+            process = self.get_process(label, stop_oneshot=stop_oneshot)
             if process.running:
                 running_processes.append(process)
             else:
