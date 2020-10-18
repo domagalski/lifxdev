@@ -469,47 +469,67 @@ class LifxServer:
         else:
             return f"{label} power state: {state}"
 
-    def _check_running_processes(self) -> Optional[str]:
+    def _check_running_processes(
+        self, *, to_json: bool = False, kill_oneshot: bool = False
+    ) -> Optional[str]:
         """Check running processes for errors and construct a message"""
-        failures = self._process_manager.check_failures()
+        failures = self._process_manager.check_failures(kill_oneshot=kill_oneshot)
+        if to_json:
+            return json.dumps(
+                {
+                    label: {
+                        "returncode": failure.returncode,
+                        "stdout": failure.stdout,
+                        "stderr": failure.stderr,
+                    }
+                    for label, failure in failures.items()
+                }
+            )
+
+        tab = 4 * " "
+        tab2 = 2 * tab
         msg_lines = []
-        for label, failure in failures.items():
-            if failure:
-                if failure[0].strip():
-                    msg_lines.append(f"{label} stdout:")
-                    msg_lines.append(failure[0].strip())
+        for label, failure in sorted(failures.items(), key=lambda tt: tt[0]):
+            msg_lines.append(f"\n{label} returncode: {failure.returncode}")
+            if failure.stdout:
+                msg_lines.append(f"{tab}stdout:")
+                for line in failure.stdout.splitlines():
+                    msg_lines.append(f"{tab2}{line}")
+                if failure.stderr:
                     msg_lines.append("")
-                if failure[1].strip():
-                    msg_lines.append(f"{label} stderr:")
-                    msg_lines.append(failure[1].strip())
-                    msg_lines.append("")
+            if failure.stderr:
+                msg_lines.append(f"{tab}stderr:")
+                for line in failure.stderr.splitlines():
+                    msg_lines.append(f"{tab2}{line}")
+
         if msg_lines:
-            msg_lines.insert(0, "Processes with errors:\n")
-            return "\n".join(msg_lines[:-1])
+            msg_lines.insert(0, "Processes with errors:")
+            return "\n".join(msg_lines).strip()
 
     @_command("check", "Check running processes for failures.")
-    def _print_check(self) -> str:
-        msg = self._check_running_processes()
+    @_add_arg("--to-json", arg_type=bool, help_msg="Return output in json format.")
+    @_add_arg(
+        "--kill-oneshot",
+        arg_type=bool,
+        help_msg="Kill any non-ongoing processes that may be lingering.",
+    )
+    def _print_check(self, to_json: bool, kill_oneshot: bool) -> str:
+        msg = self._check_running_processes(to_json=to_json, kill_oneshot=kill_oneshot)
         if msg:
             return msg
         else:
             return "No processes with errors."
 
     @_command("list", "List available and running processes.")
-    @_add_arg("--machine", arg_type=bool, help_msg="Return machine-readable string output.")
-    def _list_processes(self, machine: bool) -> str:
-        if not machine:
+    @_add_arg("--to-json", arg_type=bool, help_msg="Return output in json format.")
+    def _list_processes(self, to_json: bool) -> str:
+        if not to_json:
             check_msg = self._check_running_processes()
             if check_msg:
                 return check_msg
 
-        # Assume possibly running from within a lifx process if requesting machine-readable
-        # If within a lifx process, possible that process could be a one-shot. In that case,
-        # it should be able to view itself in the process list from within itself.
-        available, running = self._process_manager.get_available_and_running(
-            stop_oneshot=not machine
-        )
-        if machine:
+        available, running = self._process_manager.get_available_and_running()
+        if to_json:
             return json.dumps(
                 {
                     "available": [p.label for p in available],

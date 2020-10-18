@@ -12,6 +12,9 @@ ongoing:
 oneshot:
   filename: oneshot.py
 
+really-long-oneshot:
+  filename: really_long_oneshot.py
+
 immortal:
   filename: immortal.py
   ongoing: true

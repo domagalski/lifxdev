@@ -216,15 +216,22 @@ class ServerTest(unittest.TestCase):
 
         # check machine-readable list
         self.assertTrue(self.run_cmd_get_response("start oneshot", self.lifx_client))
-        running = json.loads(self.run_cmd_get_response("list --machine", self.lifx_client))[
+        running = json.loads(self.run_cmd_get_response("list --to-json", self.lifx_client))[
             "running"
         ]
         self.assertIn("oneshot", running)
-        self.assertTrue(self.run_cmd_get_response("list", self.lifx_client))
-        available = json.loads(self.run_cmd_get_response("list --machine", self.lifx_client))[
-            "available"
+
+        # Handle long-running oneshot commands
+        self.assertTrue(self.run_cmd_get_response("start really-long-oneshot", self.lifx_client))
+        running = json.loads(self.run_cmd_get_response("list --to-json", self.lifx_client))[
+            "running"
         ]
-        self.assertIn("oneshot", available)
+        self.assertIn("really-long-oneshot", running)
+        self.assertFalse(json.loads(self.run_cmd_get_response("check --to-json", self.lifx_client)))
+        failed_processes = json.loads(
+            self.run_cmd_get_response("check --to-json --kill-oneshot", self.lifx_client)
+        )
+        self.assertIn("really-long-oneshot", failed_processes)
 
         # Detect errors
         timeout = 5
@@ -234,7 +241,7 @@ class ServerTest(unittest.TestCase):
             detected_failure = False
             start = time.time()
             while time.time() < start + timeout:
-                if "failure stderr" in self.run_cmd_get_response(cmd, self.lifx_client):
+                if "failure returncode: " in self.run_cmd_get_response(cmd, self.lifx_client):
                     detected_failure = True
                     break
                 else:

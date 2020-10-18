@@ -27,8 +27,8 @@ class ProcessTest(unittest.TestCase):
         while time.time() < start + 5:
             failures = self.process_manager.check_failures()
             time.sleep(0.01)
-            if failures[label]:
-                _, stderr = failures[label]
+            if failures.get(label):
+                stderr = failures[label].stderr
                 failure_detected = "CommandError: command failed" in stderr
                 break
 
@@ -60,9 +60,9 @@ class ProcessTest(unittest.TestCase):
         # Stopping twice is fine. Nothing happens
         self.process_manager.stop(label)
 
-        # Check oneshot commands aren't lingering.
         label = "oneshot"
         self.process_manager.start(label)
+        self.process_manager.get_process(label).wait()
         self.assertFalse(self.process_manager.get_process(label).running)
 
         # Check conflicts

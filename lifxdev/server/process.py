@@ -4,6 +4,7 @@ import copy
 import pathlib
 import subprocess as spr
 import sys
+import time
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 import yaml
@@ -56,6 +57,7 @@ class Process:
         if not isinstance(immortal, bool):
             raise ValueError("immortal must be a boolean.")
 
+        self._cmd_args: Optional[str] = None
         self._proc: Optional[spr.Popen] = None
         self._running = False
         self._devices = set(devices)
@@ -73,7 +75,10 @@ class Process:
     @property
     def running(self) -> bool:
         """Check if a process is running"""
-        return bool(self._proc)
+        if self._proc:
+            return self._proc.poll() is None
+        else:
+            return False
 
     @property
     def devices(self) -> Set:
@@ -87,11 +92,11 @@ class Process:
     def immortal(self) -> bool:
         return self._immortal
 
-    def check_failure(self) -> Optional[Tuple[str, str]]:
+    def check_failure(self) -> Optional[spr.CompletedProcess]:
         """Check that a running processes is still running.
 
         Return:
-            If a process should be running but isn't, return (stdout, stderr) else None.
+            If a process should be running but isn't, return output else None.
         """
         if not self._proc:
             return None
@@ -100,42 +105,58 @@ class Process:
         if retcode is None:
             return None
 
-        stdout, stderr = self._proc.communicate()
-        returncode = self._proc.returncode
-        self._proc = None
-        if returncode:
-            return stdout, stderr
+        completed = self.wait()
+        if completed.returncode:
+            return completed
+
+    def kill(self) -> None:
+        """Kill a process if possible."""
+        if self._proc:
+            if self._proc.poll() is None:
+                # Do not reset self._proc to None so that check_failure can read it.
+                self._proc.kill()
+                # Wait until the process is fully killed before returning
+                # Not using self._proc.wait() since it can deadlock with pipes.
+                while self._proc.poll() is None:
+                    time.sleep(0.001)
 
     def start(self, argv: List[str] = []) -> None:
         """Start the process"""
         # Processes that are already running can't be duplicated.
         # If the process, however, is not ongoing, cleanly stop before restarting.
         if self._proc:
-            if self._ongoing:
+            if self._ongoing and self._proc.poll() is None:
                 raise ProcessRunningError(f"Process already running: {self._label}")
             else:
                 self.stop()
 
         # Use the python executable running this for Process objects
-        cmd = []
+        self._cmd_args = []
         if self._filename.name.endswith(".py"):
-            cmd.append(sys.executable)
-        cmd.append(self._filename)
-        cmd += argv
+            self._cmd_args.append(sys.executable)
+        self._cmd_args.append(self._filename)
+        self._cmd_args += argv
 
         # Run the process.
         # Do not stop oneshot (non-ongoing processes). The ProcessManager handles that.
-        self._proc = spr.Popen(cmd, stdout=spr.PIPE, stderr=spr.PIPE, encoding="utf-8")
+        self._proc = spr.Popen(self._cmd_args, stdout=spr.PIPE, stderr=spr.PIPE, encoding="utf-8")
 
     def stop(self) -> None:
         """Stop the process"""
         if not self._proc:
             return
 
-        if self._ongoing:
-            self._proc.terminate()
+        if self._proc.poll() is None:
+            self._proc.kill()
         self._proc.communicate()
         self._proc = None
+
+    def wait(self) -> spr.CompletedProcess:
+        """Wait for the process to complete and return its output"""
+        stdout, stderr = self._proc.communicate()
+        returncode = self._proc.returncode
+        self._proc = None
+        return spr.CompletedProcess(self._cmd_args, returncode, stdout.strip(), stderr.strip())
 
 
 class ProcessManager:
@@ -180,30 +201,33 @@ class ProcessManager:
 
             self._all_processes[label] = Process(label, filename, **config)
 
-    def get_process(self, label: str, *, stop_oneshot: bool = True) -> Process:
-        """Get a process. If non-ongoing, make sure it's stopped first"""
+    def get_process(self, label: str) -> Process:
+        """Get a process."""
         proc = self._all_processes[label]
-        if not proc.ongoing and stop_oneshot:
-            proc.stop()
         return proc
 
     def has_process(self, label: str) -> bool:
         return label in self._all_processes
 
-    def check_failures(self) -> Dict[str, Optional[Tuple[str, str]]]:
+    def check_failures(self, *, kill_oneshot: bool = False) -> Dict[str, spr.CompletedProcess]:
         """Check all processes for failures.
+
+        Args:
+            kill_oneshot: (bool) Kill any non-ongoing process that may be lingering.
 
         Returns:
             Return a dict with labels and check_failure() for each process
         """
-        failures: Dict[str, Optional[Tuple[str, str]]] = {}
+        failures: Dict[str, Optional[spr.CompletedProcess]] = {}
         for label, process in self._all_processes.items():
-            failures[label] = process.check_failure()
+            if not process.ongoing and kill_oneshot:
+                process.kill()
+            output = process.check_failure()
+            if output:
+                failures[label] = output
         return failures
 
-    def get_available_and_running(
-        self, *, stop_oneshot: bool = True
-    ) -> Tuple[List[Process], List[Process]]:
+    def get_available_and_running(self) -> Tuple[List[Process], List[Process]]:
         """Get all processes.
 
         Returns:
@@ -212,7 +236,7 @@ class ProcessManager:
         available_processes: List[Process] = []
         running_processes: List[Process] = []
         for label in self._all_processes:
-            process = self.get_process(label, stop_oneshot=stop_oneshot)
+            process = self.get_process(label)
             if process.running:
                 running_processes.append(process)
             else:
