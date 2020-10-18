@@ -64,6 +64,26 @@ class ServerTest(unittest.TestCase):
             self.lifx_client,
         )
 
+    def test_on_off(self):
+        self.assertTrue(self.run_cmd_get_response("off -h", self.lifx_client))
+        self.assertTrue(self.run_cmd_get_response("on -h", self.lifx_client))
+
+        self.assertTrue(self.run_cmd_get_response("on", self.lifx_client))
+        response = self.run_cmd_get_response(
+            "power device-a --machine",
+            self.lifx_client.send_recv,
+        )
+        self.assertIsNone(response.error)
+        self.assertEqual(response.response, "1")
+
+        self.assertTrue(self.run_cmd_get_response("off", self.lifx_client))
+        response = self.run_cmd_get_response(
+            "power device-a --machine",
+            self.lifx_client.send_recv,
+        )
+        self.assertIsNone(response.error)
+        self.assertEqual(response.response, "0")
+
     def test_client(self):
         self.assertRaises(
             SystemExit,

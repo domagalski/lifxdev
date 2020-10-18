@@ -252,6 +252,17 @@ class LifxServer:
         msg_lines.append("")
         return "\n".join(msg_lines)
 
+    @_command("off", "Turn all lights off and stop all processes.")
+    def _lights_off(self):
+        self._process_manager.killall()
+        self._device_manager.set_power(False)
+        return "Turned off the lights."
+
+    @_command("on", "Turn all lights on.")
+    def _lights_on(self):
+        self._device_manager.set_power(True)
+        return "Turned on the lights."
+
     @_command("reload", "Reload device or process config.")
     @_add_arg("config", nargs="?", choices={"device", "process"}, help_msg="The config to reload.")
     def _reload_config(self, config: Optional[str]) -> str:
