@@ -27,13 +27,28 @@ class LifxClient:
             port: (int) The TCP port to connect to.
             timeout: (int) ZMQ timeout in milliseconds. -1 means no timeout.
         """
+        self._zmq_addr = f"tcp://{ip}:{port}"
+        self._zmq_socket = None
+        self._timeout = timeout
+        self.connect()
+
+    def connect(self) -> None:
+        """Connect to the ZMQ socket"""
+        if self._zmq_socket:
+            raise FileExistsError("ZMQ socket in use.")
+
         self._zmq_socket = zmq.Context().socket(zmq.REQ)
-        self._zmq_socket.setsockopt(zmq.RCVTIMEO, timeout)
-        self._zmq_socket.setsockopt(zmq.SNDTIMEO, timeout)
-        self._zmq_socket.connect(f"tcp://{ip}:{port}")
+        self._zmq_socket.setsockopt(zmq.RCVTIMEO, self._timeout)
+        self._zmq_socket.setsockopt(zmq.SNDTIMEO, self._timeout)
+        self._zmq_socket.connect(self._zmq_addr)
 
     def close(self) -> None:
+        """Close the ZMQ socket"""
+        if not self._zmq_socket:
+            raise BrokenPipeError("ZMQ socket already closed.")
+
         self._zmq_socket.close(linger=0)
+        self._zmq_socket = None
 
     def __call__(self, cmd_and_args: str) -> str:
         """Send a command to the server and log/raise a response message/error.

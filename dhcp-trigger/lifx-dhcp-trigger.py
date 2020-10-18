@@ -141,7 +141,15 @@ class DhcpTrigger:
         logging.info(f"Detected MAC address {mac} at IP: {ip}")
         cmd_label = self._all_macs[mac]
         cmd = self._commands[cmd_label]
-        response = self._lifx.send_recv(cmd)
+        while True:
+            try:
+                response = self._lifx.send_recv(cmd)
+                break
+            except zmq.ZMQError:
+                logging.error("Cannot communicate with LIFX server. Retrying...")
+                self._lifx.close()
+                self._lifx.connect()
+
         if response.response:
             logging.info(response.response)
         elif response.error:
@@ -196,15 +204,11 @@ def main(
     dhcp_trigger = DhcpTrigger(config_path, port, lifx_ip, lifx_port, lifx_timeout)
     logging.info(f"Listening for DHCP connections on port: {port}")
     logging.info(f"LIFX client: {lifx_ip}:{lifx_port}")
-    while True:
-        try:
+    try:
+        while True:
             dhcp_trigger.wait_for_connection()
-        except zmq.ZMQError:
-            logging.error("Cannot communicate with LIFX server. Retrying...")
-            continue
-        finally:
-            dhcp_trigger.close()
-            break
+    finally:
+        dhcp_trigger.close()
 
 
 if __name__ == "__main__":
