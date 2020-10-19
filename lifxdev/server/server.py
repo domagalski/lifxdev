@@ -14,6 +14,7 @@ import zmq
 
 from lifxdev.colors import color
 from lifxdev.devices import device_manager
+from lifxdev.devices import light
 from lifxdev.devices import tile
 from lifxdev.server import logs
 from lifxdev.server import process
@@ -297,20 +298,29 @@ class LifxServer:
 
         return response
 
-    @_command("devices", "Show every available device.")
-    def _show_devices(self) -> str:
-        msg_lines = ["\n\n    LIFX Devices:\n"]
-        for lifx_device in sorted(
-            self._device_manager.get_all_devices().values(),
-            key=lambda l: l.label,
-        ):
+    @staticmethod
+    def _get_device_info(device_list: List[light.LifxLight]) -> Dict[str, Dict[str, str]]:
+        """Get attributes about a list of devices"""
+        device_dict: Dict[str, Dict[str, str]] = {}
+        for lifx_device in sorted(device_list, key=lambda l: l.label):
+            device_dict[lifx_device.label] = {
+                "type": type(lifx_device).__name__,
+                "ip": lifx_device.ip,
+            }
+        return device_dict
+
+    @staticmethod
+    def _format_device_attributes(device_dict: Dict[str, Dict[str, str]]) -> str:
+        """Pretty-format device attributes into a human-readable table"""
+        msg_lines = []
+        for label, attributes in device_dict.items():
             msg_lines.append(
                 "".join(
                     [
                         " " * 8,
-                        lifx_device.label.ljust(24),
-                        type(lifx_device).__name__.ljust(18),
-                        lifx_device.ip,
+                        label.ljust(24),
+                        attributes["type"].ljust(18),
+                        attributes["ip"],
                     ]
                 )
             )
@@ -318,13 +328,55 @@ class LifxServer:
         msg_lines.append("")
         return "\n".join(msg_lines)
 
-    @_command("groups", "Show every available group.")
-    def _show_groups(self) -> str:
-        msg_lines = ["\n\n    LIFX Groups:\n"]
-        for group in sorted(self._device_manager.get_all_groups().keys()):
-            msg_lines.append("".join([" " * 8, group]))
+    @_command("devices", "Show every available device.")
+    @_add_arg("label", nargs="?", help_msg="Name of a device to query.")
+    @_add_arg("--to-json", arg_type=bool, help_msg="Return output in json format.")
+    def _show_devices(self, label: Optional[str], to_json: bool) -> str:
+        if label:
+            lifx_device = self._device_manager.get_device(label)
+            dev_info = self._get_device_info([lifx_device])[label]
+            if to_json:
+                return json.dumps({label: dev_info})
 
-        msg_lines.append("")
+            dev_type = dev_info["type"]
+            dev_ip = dev_info["ip"]
+            msg_lines = [
+                f"\n\n    Label: {label}",
+                f"    Type: {dev_type}",
+                f"    IP: {dev_ip}\n",
+            ]
+
+        else:
+            device_dict = self._get_device_info(self._device_manager.get_all_devices().values())
+            if to_json:
+                return json.dumps(device_dict)
+
+            msg_lines = ["\n\n    LIFX Devices:\n"]
+            msg_lines.append(self._format_device_attributes(device_dict))
+
+        return "\n".join(msg_lines)
+
+    @_command("groups", "Show every available group.")
+    @_add_arg("label", nargs="?", help_msg="Name of a group to query.")
+    @_add_arg("--to-json", arg_type=bool, help_msg="Return output in json format.")
+    def _show_groups(self, label: Optional[str], to_json: bool) -> str:
+        if label:
+            lifx_group = self._device_manager.get_group(label)
+            device_dict = self._get_device_info(lifx_group.get_all_devices().values())
+            if to_json:
+                return json.dumps(device_dict)
+
+            msg_lines = [f"\n\n    LIFX Device Group {label}:\n"]
+            msg_lines.append(self._format_device_attributes(device_dict))
+        else:
+            if to_json:
+                return json.dumps({"groups": list(self._device_manager.get_all_groups().keys())})
+
+            msg_lines = ["\n\n    LIFX Groups:\n"]
+            for group in sorted(self._device_manager.get_all_groups().keys()):
+                msg_lines.append("".join([" " * 8, group]))
+
+            msg_lines.append("")
         return "\n".join(msg_lines)
 
     @_command("color", "Get or set the color of a device or group.")
@@ -583,6 +635,18 @@ class LifxServer:
     def _stop_process(self, label: str) -> str:
         self._process_manager.stop(label)
         return f"Stopped process: {label}"
+
+    @_command("status", "Check if a process is running")
+    @_add_arg("label", help_msg="Name of a process to query.")
+    @_add_arg("--machine", arg_type=bool, help_msg="Return machine-readable string output.")
+    def _check_process_status(self, label: str, machine: bool) -> str:
+        available_msg = {True: "0", False: f"Process {label!r} is not running."}
+        running_msg = {True: "1", False: f"Process {label!r} is running."}
+
+        if self._process_manager.get_process(label).running:
+            return running_msg[machine]
+        else:
+            return available_msg[machine]
 
 
 @click.command()

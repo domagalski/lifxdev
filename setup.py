@@ -5,7 +5,7 @@ import setuptools
 pkg_name = "lifxdev"
 setuptools.setup(
     name=pkg_name,
-    version="1.1.7",
+    version="1.1.8",
     description="LIFX device control over LAN.",
     author="Rachel Simone Domagalski",
     license="GPL",

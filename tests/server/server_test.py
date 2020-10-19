@@ -111,6 +111,30 @@ class ServerTest(unittest.TestCase):
         self.assertIn("\n", self.run_cmd_get_response("cmap", self.lifx_client))
         self.assertIn("\n", self.run_cmd_get_response("list", self.lifx_client))
 
+        # Check machine-readable device/group information
+        self.assertIn(
+            "device-a",
+            json.loads(self.run_cmd_get_response("devices --to-json", self.lifx_client)),
+        )
+        self.assertIn(
+            "group-a",
+            json.loads(self.run_cmd_get_response("groups --to-json", self.lifx_client))["groups"],
+        )
+
+        # Check specific devices
+        self.assertIn(
+            "Type: LifxLight", self.run_cmd_get_response("devices device-a", self.lifx_client)
+        )
+        device_attr = json.loads(
+            self.run_cmd_get_response("devices device-a --to-json", self.lifx_client)
+        )
+        self.assertEqual("LifxLight", device_attr["device-a"]["type"])
+
+        device_attr = json.loads(
+            self.run_cmd_get_response("groups group-b --to-json", self.lifx_client)
+        )
+        self.assertEqual("LifxLight", device_attr["device-a"]["type"])
+
     def test_reload_config(self):
         self.assertIsNone(self.run_cmd_get_response("reload", self.lifx_client.send_recv).error)
         self.assertIsNone(
@@ -212,7 +236,17 @@ class ServerTest(unittest.TestCase):
             "No processes with errors",
             self.run_cmd_get_response("check", self.lifx_client.send_recv).response,
         )
+        self.assertEqual(
+            1, int(self.run_cmd_get_response("status ongoing --machine", self.lifx_client))
+        )
+        self.assertIn("is running", self.run_cmd_get_response("status ongoing", self.lifx_client))
         self.assertTrue(self.run_cmd_get_response("stop ongoing", self.lifx_client))
+        self.assertEqual(
+            0, int(self.run_cmd_get_response("status ongoing --machine", self.lifx_client))
+        )
+        self.assertIn(
+            "is not running", self.run_cmd_get_response("status ongoing", self.lifx_client)
+        )
 
         # check machine-readable list
         self.assertTrue(self.run_cmd_get_response("start oneshot", self.lifx_client))

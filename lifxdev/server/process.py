@@ -203,8 +203,7 @@ class ProcessManager:
 
     def get_process(self, label: str) -> Process:
         """Get a process."""
-        proc = self._all_processes[label]
-        return proc
+        return self._all_processes[label]
 
     def has_process(self, label: str) -> bool:
         return label in self._all_processes
@@ -231,7 +230,7 @@ class ProcessManager:
         """Get all processes.
 
         Returns:
-            dict(label: available_processes), dict(label: running_processes)
+            available_processes, running_processes
         """
         available_processes: List[Process] = []
         running_processes: List[Process] = []
