@@ -17,7 +17,7 @@ class MultiZoneTest(unittest.TestCase):
             "127.0.0.1",
             label="LIFX mock",
             nonblock_delay=0,
-            comm=test_utils.MockSocket(product=test_utils.Product.TILE),
+            comm_init=lambda: test_utils.MockSocket(product=test_utils.Product.TILE),
         )
 
     def test_get_device_chain(self):

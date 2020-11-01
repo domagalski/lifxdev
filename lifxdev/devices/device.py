@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import socket
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from lifxdev.messages import packet
 from lifxdev.messages import device_messages
@@ -20,7 +20,7 @@ class LifxDevice:
         timeout: Optional[float] = packet.TIMEOUT,
         nonblock_delay: float = packet.NONBOCK_DELAY,
         verbose: bool = False,
-        comm: Optional[socket.socket] = None,
+        comm_init: Optional[Callable] = None,
     ):
         """Create a LIFX device from an IP address
 
@@ -33,9 +33,12 @@ class LifxDevice:
             nonblock_delay: (float) Delay time to wait for messages when nonblocking.
             broadcast: (bool) Whether the IP address is a broadcast address.
             verbose: (bool) Use logging.info instead of logging.debug.
-            comm: (socket) Optionally override the socket used for the device class.
+            comm_init: (function) This function (no args) creates a socket object.
         """
-        comm = comm or socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        if comm_init:
+            comm = comm_init()
+        else:
+            comm = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         comm.settimeout(timeout)
         comm.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         udp_sender = packet.UdpSender(
@@ -51,10 +54,6 @@ class LifxDevice:
     @property
     def ip(self) -> str:
         return self._comm.ip
-
-    def _get_socket(self) -> socket.socket:
-        """Return the socket object for UDP communication"""
-        return self._comm.get_socket()
 
     def _set_timeout(self, timeout: Optional[float]) -> None:
         """Set the timeout of the UDP socket"""

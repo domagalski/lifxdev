@@ -825,10 +825,6 @@ class PacketComm:
         """Set the timeout of the UDP socket"""
         self._comm.comm.settimeout(timeout)
 
-    def get_socket(self) -> socket.socket:
-        """Return the socket object"""
-        return self._comm.comm
-
 
 def is_str_ipaddr(ipaddr: str) -> bool:
     """Check of a string is an IP address"""

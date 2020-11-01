@@ -17,7 +17,7 @@ class LightTest(unittest.TestCase):
             "127.0.0.1",
             label="LIFX mock",
             nonblock_delay=0,
-            comm=test_utils.MockSocket(product=test_utils.Product.LIGHT),
+            comm_init=lambda: test_utils.MockSocket(product=test_utils.Product.LIGHT),
         )
 
     def test_set_color(self):

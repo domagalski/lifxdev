@@ -6,7 +6,6 @@ import json
 import logging
 import pathlib
 import shlex
-import socket
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Type, Union
 
 import click
@@ -145,7 +144,7 @@ class LifxServer:
         process_config_path: Union[str, pathlib.Path] = PROCESS_CONFIG,
         timeout: int = SERVER_TIMEOUT,
         verbose: bool = True,
-        comm: Optional[socket.socket] = None,
+        comm_init: Optional[Callable] = None,
     ):
         """Create a LIFX server
 
@@ -155,7 +154,7 @@ class LifxServer:
             process_config_path: (str) Path to process config.
             timeout: (int) Max time in ms to wait to receive a command.
             verbose: (bool) Log to INFO instead of DEBUG.
-            comm: (socket) Override the default UDB socket object.
+            comm_init: (function) This function (no args) creates a socket object.
         """
         self._server_port = server_port
         self._device_config_path = pathlib.Path(device_config_path)
@@ -165,7 +164,7 @@ class LifxServer:
         self._device_manager = device_manager.DeviceManager(
             self._device_config_path,
             verbose=verbose,
-            comm=comm,
+            comm_init=comm_init,
         )
 
         self._process_manager = process.ProcessManager(self._process_config_path)

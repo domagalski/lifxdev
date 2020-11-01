@@ -5,7 +5,6 @@ import enum
 import functools
 import logging
 import pathlib
-import socket
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 import yaml
@@ -195,7 +194,7 @@ class DeviceManager(device.LifxDevice):
         timeout: Optional[float] = packet.TIMEOUT,
         nonblock_delay: float = packet.NONBOCK_DELAY,
         verbose: bool = False,
-        comm: Optional[socket.socket] = None,
+        comm_init: Optional[Callable] = None,
     ):
         """Create a LIFX device manager.
 
@@ -205,7 +204,7 @@ class DeviceManager(device.LifxDevice):
             timeout: (float) UDP response timeout.
             nonblock_delay: (float) Delay time to wait for messages when nonblocking.
             verbose: (bool) Use logging.info instead of logging.debug.
-            comm: (socket) Optionally override the socket used for the device class.
+            comm_init: (function) This function (no args) creates a socket object.
         """
         super().__init__(
             ip="255.255.255.255",
@@ -213,10 +212,11 @@ class DeviceManager(device.LifxDevice):
             timeout=timeout,
             nonblock_delay=nonblock_delay,
             verbose=verbose,
-            comm=comm,
+            comm_init=comm_init,
         )
 
         self._timeout = timeout
+        self._comm_init = comm_init
 
         # Load product identification
         products = pathlib.Path(__file__).parent / "products.yaml"
@@ -293,7 +293,7 @@ class DeviceManager(device.LifxDevice):
                     ip,
                     port=port,
                     label=label,
-                    comm=self._get_socket(),
+                    comm_init=self._comm_init,
                     timeout=self._timeout,
                     verbose=self._verbose,
                 ),
@@ -427,7 +427,7 @@ class DeviceManager(device.LifxDevice):
                     port=port,
                     label=name,
                     mac_addr=mac,
-                    comm=self._get_socket(),
+                    comm_init=self._comm_init,
                     verbose=self._verbose,
                 )
 
