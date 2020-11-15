@@ -16,7 +16,7 @@ class LifxLight(device.LifxDevice):
     def __init__(self, *args, label: str, max_brightness: float = 1.0, **kwargs):
         super().__init__(*args, **kwargs)
         self._label = label
-        self._max_brightness = float(max_brightness)
+        self.max_brightness = max_brightness
 
     @property
     def label(self) -> str:
@@ -29,6 +29,14 @@ class LifxLight(device.LifxDevice):
     @property
     def max_brightness(self) -> float:
         return self._max_brightness
+
+    @max_brightness.setter
+    def max_brightness(self, value: float) -> float:
+        if value <= 0:
+            raise ValueError("Max brightness must be greater than zero.")
+        elif value > 1:
+            raise ValueError("Max brightness must be less than or equal to one.")
+        self._max_brightness = float(value)
 
     def get_color(self) -> color.Hsbk:
         """Get the color of the device
