@@ -415,7 +415,7 @@ class DeviceManager(device.LifxDevice):
             if not (ip or device_type == DeviceType.group):
                 raise DeviceConfigError(f"Device {name!r} has no IP address.")
 
-            conf_mb = conf.get("max_brightness")
+            conf_mb = conf.get("max-brightness")
             if conf_mb and conf_mb < max_brightness:
                 max_brightness = conf_mb
 
