@@ -76,5 +76,9 @@ class LifxMultiZone(light.LifxLight):
         set_colors["index"] = index
         set_colors["colors_count"] = len(multizone_colors)
         for ii, hsbk in enumerate(multizone_colors):
-            set_colors.set_value("colors", color.Hsbk.from_tuple(hsbk).to_packet(), index + ii)
+            set_colors.set_value(
+                "colors",
+                color.Hsbk.from_tuple(hsbk).max_brightness(self.max_brightness).to_packet(),
+                index + ii,
+            )
         return self.send_msg(set_colors, ack_required=ack_required)

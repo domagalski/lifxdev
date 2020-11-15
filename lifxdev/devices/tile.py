@@ -118,5 +118,8 @@ class LifxTile(light.LifxLight):
         set_request["tile_index"] = tile_index
         set_request["length"] = length
         set_request["duration"] = int(duration * 1000)
-        set_request["colors"] = [color.Hsbk.from_tuple(hsbk).to_packet() for hsbk in tile_colors]
+        set_request["colors"] = [
+            hsbk_tuple.max_brightness(self.max_brightness).to_packet()
+            for hsbk_tuple in map(color.Hsbk.from_tuple, tile_colors)
+        ]
         return self.send_msg(set_request, ack_required=ack_required)

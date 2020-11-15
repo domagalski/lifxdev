@@ -13,9 +13,10 @@ COLOR_T = Union[color.Hsbk, Tuple[float, float, float, int]]
 class LifxLight(device.LifxDevice):
     """Light control"""
 
-    def __init__(self, *args, label: str, **kwargs):
+    def __init__(self, *args, label: str, max_brightness: float = 1.0, **kwargs):
         super().__init__(*args, **kwargs)
         self._label = label
+        self._max_brightness = float(max_brightness)
 
     @property
     def label(self) -> str:
@@ -24,6 +25,10 @@ class LifxLight(device.LifxDevice):
     @label.setter
     def label(self, value: str):
         raise RuntimeError("Label can only be set on init.")
+
+    @property
+    def max_brightness(self) -> float:
+        return self._max_brightness
 
     def get_color(self) -> color.Hsbk:
         """Get the color of the device
@@ -60,7 +65,7 @@ class LifxLight(device.LifxDevice):
         Returns:
             If ack_required, get an acknowledgement LIFX response tuple.
         """
-        hsbk = color.Hsbk.from_tuple(hsbk)
+        hsbk = color.Hsbk.from_tuple(hsbk).max_brightness(self.max_brightness)
         set_color_msg = light_messages.SetColor(
             color=hsbk.to_packet(),
             duration=int(duration * 1000),

@@ -395,7 +395,9 @@ class DeviceManager(device.LifxDevice):
 
         self._root_device_group = self._load_device_group(config_dict)
 
-    def _load_device_group(self, config_dict: Dict[str, Any]) -> DeviceGroup:
+    def _load_device_group(
+        self, config_dict: Dict[str, Any], max_brightness: float = 1.0
+    ) -> DeviceGroup:
         """Recursively load a device group from a config dict."""
         devices_and_groups: Dict[str, Any] = {}
         for name, conf in config_dict.items():
@@ -413,10 +415,14 @@ class DeviceManager(device.LifxDevice):
             if not (ip or device_type == DeviceType.group):
                 raise DeviceConfigError(f"Device {name!r} has no IP address.")
 
+            conf_mb = conf.get("max_brightness")
+            if conf_mb and conf_mb < max_brightness:
+                max_brightness = conf_mb
+
             # Recurse through group listing
             if device_type == DeviceType.group:
                 group_devices = conf.get("devices")
-                devices_and_groups[name] = self._load_device_group(group_devices)
+                devices_and_groups[name] = self._load_device_group(group_devices, max_brightness)
 
             else:
                 mac = conf.get("mac")
@@ -426,6 +432,7 @@ class DeviceManager(device.LifxDevice):
                     ip,
                     port=port,
                     label=name,
+                    max_brightness=max_brightness,
                     mac_addr=mac,
                     comm_init=self._comm_init,
                     verbose=self._verbose,

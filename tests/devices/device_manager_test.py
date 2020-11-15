@@ -89,12 +89,12 @@ class DeviceManagerTest(unittest.TestCase):
 
     def test_set_color(self):
         hsbk = color.Hsbk(hue=300, saturation=1, brightness=1, kelvin=5500)
-        self.lifx.root.set_color(hsbk)
         for device in self.lifx.get_all_devices().values():
+            device.set_color(hsbk)
             device_hsbk = device.get_color()
             self.assertEqual(round(device_hsbk.hue), round(hsbk.hue))
             self.assertEqual(device_hsbk.saturation, hsbk.saturation)
-            self.assertEqual(device_hsbk.brightness, hsbk.brightness)
+            self.assertAlmostEqual(device_hsbk.brightness, device.max_brightness, 4)
             self.assertEqual(device_hsbk.kelvin, hsbk.kelvin)
 
     def test_set_colormap(self):
@@ -113,6 +113,34 @@ class DeviceManagerTest(unittest.TestCase):
         self.lifx.root.set_power(True)
         for device in self.lifx.get_all_devices().values():
             self.assertTrue(device.get_power())
+
+    def test_max_brightness(self):
+        for label in ["device-a", "device-b", "device-c", "device-d"]:
+            dev = self.lifx.get_device(label)
+            self.assertEqual(dev.max_brightness, 1.0)
+
+        for label in ["device-e", "device-f", "device-g"]:
+            dev = self.lifx.get_device(label)
+            self.assertEqual(dev.max_brightness, 0.5)
+            if not isinstance(dev, (multizone.LifxMultiZone, tile.LifxTile)):
+                continue
+
+            dev.set_colormap("cool")
+            if isinstance(dev, multizone.LifxMultiZone):
+                self._check_mz(dev)
+            elif isinstance(dev, tile.LifxTile):
+                self._check_tile(dev)
+
+    def _check_mz(self, dev: multizone.LifxMultiZone):
+        zones = dev.get_multizone()
+        for hsbk in zones:
+            self.assertLessEqual(hsbk.brightness, dev.max_brightness)
+
+    def _check_tile(self, dev: tile.LifxTile):
+        tile_colors = dev.get_tile_colors(0)
+        for color_list in tile_colors:
+            for hsbk in color_list:
+                self.assertLessEqual(hsbk.brightness, dev.max_brightness)
 
 
 if __name__ == "__main__":

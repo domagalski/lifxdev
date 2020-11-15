@@ -41,6 +41,12 @@ class Hsbk(NamedTuple):
         hue, saturation, brightness, kelvin = hsbk
         return cls(hue=hue, saturation=saturation, brightness=brightness, kelvin=kelvin)
 
+    def max_brightness(self, brightness: float) -> "Hsbk":
+        """Force the brightness to be at most a specific value"""
+        if self.brightness > brightness:
+            return self._replace(brightness=brightness)
+        return self
+
     def to_packet(self) -> packet.Hsbk:
         """Create a message packet from an HSBK tuple"""
         hsbk = packet.Hsbk()

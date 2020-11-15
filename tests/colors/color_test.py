@@ -33,6 +33,13 @@ class ColorTest(unittest.TestCase):
         self.assertEqual(hsbk_4[0], hsbk_8[0])
         self.assertEqual(hsbk_4[-1], hsbk_8[-1])
 
+    def test_max_brightnessg(self):
+        hsbk = color.Hsbk.from_tuple((300, 1, 1, 5500)).max_brightness(0.5)
+        self.assertAlmostEqual(hsbk.brightness, 0.5)
+
+        hsbk = color.Hsbk.from_tuple((300, 1, 0.25, 5500)).max_brightness(0.5)
+        self.assertAlmostEqual(hsbk.brightness, 0.25)
+
 
 if __name__ == "__main__":
     coloredlogs.install(level=logging.INFO)
