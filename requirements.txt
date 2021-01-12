@@ -1,4 +1,0 @@
-click
-coloredlogs
-matplotlib
-PyYAML

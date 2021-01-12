@@ -17,4 +17,10 @@ setuptools.setup(
             "lifx-server=lifxdev.server.server:main",
         ]
     },
+    install_requires=[
+        "click>=7.1",
+        "coloredlogs>=15.0",
+        "matplotlib>=3.3",
+        "PyYAML>=5.3",
+    ],
 )
