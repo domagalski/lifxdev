@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 
 import logging
+import pickle
 import shlex
+import socket
 import sys
-from typing import Tuple
+from typing import Optional, Tuple
 
 import click
-import zmq
 
 from lifxdev.server import server
 from lifxdev.server import logs
+
+
+BUFFER_SIZE = 1024
 
 
 class LifxClient:
@@ -21,9 +25,9 @@ class LifxClient:
 
     def __init__(
         self,
-        ip: str = "localhost",
+        ip: str = "127.0.0.1",
         port: int = server.SERVER_PORT,
-        timeout: int = -1,
+        timeout: Optional[float] = None,
         connect: bool = True,
     ):
         """Create a LIFX client
@@ -31,32 +35,30 @@ class LifxClient:
         Args:
             ip: (str) The IP address to connect to.
             port: (int) The TCP port to connect to.
-            timeout: (int) ZMQ timeout in milliseconds. -1 means no timeout.
-            connect: (bool) Connect to the ZMQ socket on init.
+            timeout: (float) Timeout in milliseconds. None means no timeout.
+            connect: (bool) Connect to the TCP socket on init.
         """
-        self._zmq_addr = f"tcp://{ip}:{port}"
-        self._zmq_socket = None
+        self._addr = (ip, port)
         self._timeout = timeout
+        self._socket = None
         if connect:
             self.connect()
 
     def connect(self) -> None:
-        """Connect to the ZMQ socket"""
-        if self._zmq_socket:
-            raise FileExistsError("ZMQ socket in use.")
+        if self._socket:
+            raise FileExistsError("Socket already in use.")
 
-        self._zmq_socket = zmq.Context().socket(zmq.REQ)
-        self._zmq_socket.setsockopt(zmq.RCVTIMEO, self._timeout)
-        self._zmq_socket.setsockopt(zmq.SNDTIMEO, self._timeout)
-        self._zmq_socket.connect(self._zmq_addr)
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.settimeout(self._timeout)
+        self._socket.connect(self._addr)
 
     def close(self) -> None:
-        """Close the ZMQ socket"""
-        if not self._zmq_socket:
-            raise BrokenPipeError("ZMQ socket already closed.")
+        """Close the TCP socket"""
+        if not self._socket:
+            raise BrokenPipeError("Socket already closed.")
 
-        self._zmq_socket.close(linger=0)
-        self._zmq_socket = None
+        self._socket.close()
+        self._socket = None
 
     def __call__(self, cmd_and_args: str) -> str:
         """Send a command to the server and log/raise a response message/error.
@@ -75,8 +77,16 @@ class LifxClient:
 
     def send_recv(self, cmd_and_args: str) -> server.ServerResponse:
         """Send a command to the server and receive a response message"""
-        self._zmq_socket.send_string(cmd_and_args)
-        return self._zmq_socket.recv_pyobj()
+        self._socket.send(cmd_and_args.encode())
+        recv_bytes = self._socket.recv(BUFFER_SIZE)
+        if not recv_bytes:
+            raise EOFError("EOF received from server.")
+
+        size, packet = recv_bytes.split(b":", maxsplit=1)
+        size = int(size)
+        while len(packet) < size:
+            packet += self._socket.recv(BUFFER_SIZE)
+        return pickle.loads(packet)
 
 
 @click.command()
@@ -96,16 +106,9 @@ class LifxClient:
     show_default=True,
     help="TCP Port of the LIFX server.",
 )
-@click.option(
-    "-t",
-    "--timeout",
-    default=-1,
-    type=float,
-    show_default=True,
-    help="ZMQ Timeout in seconds. -1 disables the timeout",
-)
+@click.option("-t", "--timeout", type=float, show_default=True, help="Timeout in seconds.")
 @click.argument("cmd", nargs=-1)
-def main(ip: str, port: int, timeout: float, cmd: Tuple[str, ...]):
+def main(ip: str, port: int, timeout: Optional[float], cmd: Tuple[str, ...]):
     """Control LIFX devices and processes."""
 
     logs.setup()
@@ -116,11 +119,11 @@ def main(ip: str, port: int, timeout: float, cmd: Tuple[str, ...]):
     exit_code = 1
     timeout = 5 if (len(cmd) == 1 and timeout == -1) else timeout
     cmd = " ".join([shlex.quote(word) for word in cmd])
-    lifx = LifxClient(ip, port, timeout=-1 if timeout < 0 else int(timeout * 1000))
+    lifx = LifxClient(ip, port, timeout=timeout)
     try:
         logging.info(lifx(cmd))
         exit_code = 0
-    except zmq.ZMQError:
+    except (socket.timeout, BrokenPipeError):
         logging.critical("Cannot communicate with LIFX server.")
     except Exception as e:
         logs.log_exception(e, logging.error)
