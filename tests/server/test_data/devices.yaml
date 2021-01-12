@@ -15,7 +15,9 @@ group-a:
 device-c:
   type: multizone
   ip: 127.0.0.1
+  length: 32
 
 device-d:
   type: tile
+  length: 5
   ip: 127.0.0.1

@@ -15,20 +15,24 @@ group-a:
 device-c:
   type: multizone
   ip: 127.0.0.1
+  length: 32
 
 device-d:
   type: tile
   ip: 127.0.0.1
+  length: 5
 
 device-e:
   type: tile
   ip: 127.0.0.1
   max-brightness: 0.5
+  length: 5
 
 device-f:
   type: multizone
   ip: 127.0.0.1
   max-brightness: 0.5
+  length: 32
 
 group-c:
   type: group

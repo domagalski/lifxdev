@@ -425,6 +425,16 @@ class DeviceManager(device.LifxDevice):
                 elif conf_mb < max_brightness:
                     max_brightness = conf_mb
 
+            kwargs = {}
+            if device_type in [DeviceType.multizone, DeviceType.tile]:
+                length_key = "length"
+                length = conf.get(length_key)
+                if not isinstance(length, int):
+                    raise ValueError(f"{name}:{length_key}: must be an integer.")
+                if length <= 0:
+                    raise ValueError(f"{name}:{length_key}: must be greater than zero.")
+                kwargs[length_key] = length
+
             # Recurse through group listing
             if device_type == DeviceType.group:
                 group_devices = conf.get("devices")
@@ -442,6 +452,7 @@ class DeviceManager(device.LifxDevice):
                     mac_addr=mac,
                     comm_init=self._comm_init,
                     verbose=self._verbose,
+                    **kwargs,
                 )
 
         return DeviceGroup(devices_and_groups)

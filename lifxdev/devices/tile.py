@@ -15,7 +15,9 @@ TILE_WIDTH = 8
 class LifxTile(light.LifxLight):
     """Tile device control"""
 
-    _num_tiles: Optional[int] = None
+    def __init__(self, *args, length: Optional[int] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._num_tiles: Optional[int] = length
 
     def get_chain(self) -> packet.LifxResponse:
         """Get information about the current tile chain"""

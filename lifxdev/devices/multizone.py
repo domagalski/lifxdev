@@ -13,7 +13,9 @@ from lifxdev.messages import packet
 class LifxMultiZone(light.LifxLight):
     """MultiZone device (beam, strip) control"""
 
-    _num_zones: Optional[int] = None
+    def __init__(self, *args, length: Optional[int] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._num_zones: Optional[int] = length
 
     def get_multizone(self) -> List[color.Hsbk]:
         """Get a list the colors on the MultiZone.
