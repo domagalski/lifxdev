@@ -6,8 +6,10 @@ import json
 import logging
 import pathlib
 import pickle
+import random
 import shlex
 import socket
+import threading
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Type, Union
 
 import click
@@ -131,6 +133,89 @@ class ServerResponse(NamedTuple):
     error: Optional[Exception] = None
 
 
+class _ThreadRunner:
+    """Helper class to _ThreadPool to run threads"""
+
+    def __init__(self, func: Callable, lock: threading.Lock):
+        """Run a thread, managed by ThreadPool
+
+        Args:
+            func: A function that takes no arguments to run.
+            lock: ThreadPool's lock to ensure only one thread runs at a time.
+        """
+        self._complete_lock = threading.Lock()
+        self._complete = False
+
+        self._lock = lock
+        self._func = func
+        self._thread = threading.Thread(target=self._run)
+        self._thread.start()
+
+    @property
+    def complete(self) -> bool:
+        """Check if the thread is complete"""
+        with self._complete_lock:
+            return self._complete
+
+    @complete.setter
+    def complete(self, state: bool) -> None:
+        """Set whether the thread is complete"""
+        with self._complete_lock:
+            self._complete = state
+
+    def _run(self) -> None:
+        """Run a thread and mark it as complete"""
+        with self._lock:
+            self._func()
+        self.complete = True
+
+    def join(self) -> None:
+        """Join the thread"""
+        self._thread.join()
+
+
+class _ThreadPool:
+    """Create a basic thread pool for the LIFX server
+
+    While the LIFX server supports only running one thread at a time,
+    the thread pool helps queue up threads if incoming connections come
+    in faster than the LIFX server can run a thread. After the maximum
+    number of threads are reached and not all threads are complete,
+    the thread pool will drop any incoming thread requests.
+
+    This might be overkill and not necessary, but using it anyways.
+    """
+
+    def __init__(self, num_threads: int):
+        """Create a thread pool and set the maximum number of threads"""
+        self._lock = threading.Lock()
+        self._num_threads = num_threads
+        self._threads: Dict[int, _ThreadRunner] = {}
+
+    def add(self, func: Callable):
+        """Add a function to the thread pool.
+
+        The function takes no args. If the thread pool is full, the
+        function will not be run.
+        """
+        uid = random.randint(0, (1 << 32) - 1)
+        while uid in self._threads:
+            uid = random.randint(0, (1 << 32) - 1)
+
+        if len(self._threads) == self._num_threads:
+            for uid in list(self._threads.keys()):
+                if self._threads[uid].complete:
+                    self._threads.pop(uid).join()
+
+        if len(self._threads) != self._num_threads:
+            self._threads[uid] = _ThreadRunner(func, self._lock)
+
+    def close(self):
+        """Join all existing threads"""
+        for uid in list(self._threads.keys()):
+            self._threads.pop(uid).join()
+
+
 class LifxServer:
     """LIFX Server.
 
@@ -171,8 +256,12 @@ class LifxServer:
 
         self._process_manager = process.ProcessManager(self._process_config_path)
 
+        # TODO add option to configure threadpool size
+        self._threadpool = _ThreadPool(32)
+
         # Setup the TCP listener
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.settimeout(timeout)
         self._socket.bind(("0.0.0.0", server_port))
         self._socket.listen(5)
@@ -184,6 +273,7 @@ class LifxServer:
             self._commands[cmd.label] = cmd
 
     def close(self) -> None:
+        self._threadpool.close()
         self._socket.close()
 
     def _get_device_or_group(self, label: str) -> Optional[Any]:
@@ -202,17 +292,22 @@ class LifxServer:
             raise InvalidDeviceError(f"{label!r}")
 
     def recv_and_run(self) -> None:
-        """Receive a command over TCP, run it, and send back the result string."""
+        """Receive an incoming connection and run the command from it"""
         if not self._last_wait_timeout:
             logging.info("Waiting for command...")
         try:
             conn, (ip, port) = self._socket.accept()
             logging.info(f"Received client at address: {ip}:{port}")
-            cmd_args = shlex.split(conn.recv(BUFFER_SIZE).decode())
             self._last_wait_timeout = False
         except socket.timeout:
             self._last_wait_timeout = True
             return
+
+        self._threadpool.add(lambda: self._recv_and_run(conn))
+
+    def _recv_and_run(self, conn: socket.socket) -> None:
+        """Receive a command over TCP, run it, and send back the result string."""
+        cmd_args = shlex.split(conn.recv(BUFFER_SIZE).decode())
         cmd_label = cmd_args.pop(0)
 
         cmd = self._commands.get(cmd_label)
