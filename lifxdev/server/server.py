@@ -5,11 +5,12 @@ import inspect
 import json
 import logging
 import pathlib
+import pickle
 import shlex
+import socket
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Type, Union
 
 import click
-import zmq
 
 from lifxdev.colors import color
 from lifxdev.devices import device_manager
@@ -18,8 +19,9 @@ from lifxdev.devices import tile
 from lifxdev.server import logs
 from lifxdev.server import process
 
+BUFFER_SIZE = 512
 SERVER_PORT = 16384
-SERVER_TIMEOUT = 60000
+SERVER_TIMEOUT = 60.0
 DEVICE_CONFIG = device_manager.CONFIG_PATH
 PROCESS_CONFIG = process.CONFIG_PATH
 
@@ -142,7 +144,7 @@ class LifxServer:
         *,
         device_config_path: Union[str, pathlib.Path] = DEVICE_CONFIG,
         process_config_path: Union[str, pathlib.Path] = PROCESS_CONFIG,
-        timeout: int = SERVER_TIMEOUT,
+        timeout: Optional[float] = SERVER_TIMEOUT,
         verbose: bool = True,
         comm_init: Optional[Callable] = None,
     ):
@@ -152,7 +154,7 @@ class LifxServer:
             server_port: (int) The TCP port to listen on.
             device_config_path: (str) Path to device config.
             process_config_path: (str) Path to process config.
-            timeout: (int) Max time in ms to wait to receive a command.
+            timeout: (float) Max time in ms to wait to receive a command.
             verbose: (bool) Log to INFO instead of DEBUG.
             comm_init: (function) This function (no args) creates a socket object.
         """
@@ -169,11 +171,11 @@ class LifxServer:
 
         self._process_manager = process.ProcessManager(self._process_config_path)
 
-        # Setup ZMQ
-        self._zmq_socket = zmq.Context().socket(zmq.REP)
-        self._zmq_socket.setsockopt(zmq.RCVTIMEO, timeout)
-        self._zmq_socket.setsockopt(zmq.SNDTIMEO, timeout)
-        self._zmq_socket.bind(f"tcp://*:{server_port}")
+        # Setup the TCP listener
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.settimeout(timeout)
+        self._socket.bind(("0.0.0.0", server_port))
+        self._socket.listen(5)
         self._last_wait_timeout = False
 
         # Set the command registry
@@ -182,7 +184,7 @@ class LifxServer:
             self._commands[cmd.label] = cmd
 
     def close(self) -> None:
-        self._zmq_socket.close(linger=0)
+        self._socket.close()
 
     def _get_device_or_group(self, label: str) -> Optional[Any]:
         """Get a LIFX device object or device group object by label.
@@ -200,27 +202,27 @@ class LifxServer:
             raise InvalidDeviceError(f"{label!r}")
 
     def recv_and_run(self) -> None:
-        """Receive a command over ZMQ, run it, and send back the result string."""
+        """Receive a command over TCP, run it, and send back the result string."""
         if not self._last_wait_timeout:
             logging.info("Waiting for command...")
         try:
-            cmd_args = shlex.split(self._zmq_socket.recv_string())
+            conn, (ip, port) = self._socket.accept()
+            logging.info(f"Received client at address: {ip}:{port}")
+            cmd_args = shlex.split(conn.recv(BUFFER_SIZE).decode())
             self._last_wait_timeout = False
-        except zmq.ZMQError:
+        except socket.timeout:
             self._last_wait_timeout = True
             return
         cmd_label = cmd_args.pop(0)
 
         cmd = self._commands.get(cmd_label)
         if not cmd:
-            response = ServerResponse(error=UnknownServerCommand(f"{cmd_label!r}"))
-            self._zmq_socket.send_pyobj(response)
+            self._send_response(conn, ServerResponse(error=UnknownServerCommand(f"{cmd_label!r}")))
             return
 
-        # Send help message back over ZMQ
+        # Send help message back over TCP
         if "-h" in cmd_args or "--help" in cmd_args:
-            response = ServerResponse(response=cmd.parser.format_help().strip())
-            self._zmq_socket.send_pyobj(response)
+            self._send_response(conn, ServerResponse(response=cmd.parser.format_help().strip()))
             return
 
         # Run the command and send the result to the client
@@ -232,8 +234,17 @@ class LifxServer:
         except Exception as error:
             logs.log_exception(error, logging.exception)
             response = ServerResponse(error=error)
-        self._zmq_socket.send_pyobj(response)
-        logging.info("Response sent to client.")
+
+        self._send_response(conn, response)
+
+    @staticmethod
+    def _send_response(conn: socket.socket, response: ServerResponse):
+        """Pickle a response and send it to the client"""
+        resp_bytes = pickle.dumps(response)
+        size = len(resp_bytes)
+        resp_bytes = f"{size}:".encode() + resp_bytes
+        conn.sendall(resp_bytes)
+        conn.close()
 
     @_command("help", "Show every server command and description.")
     def _show_help(self) -> str:
@@ -681,15 +692,16 @@ class LifxServer:
     "-t",
     "--timeout",
     default=SERVER_TIMEOUT,
-    type=int,
+    type=float,
     show_default=True,
-    help="ZMQ Timeout in milliseconds. -1 disables the timeout",
+    help="Server timeout in seconds. <=0 disables the timeout",
 )
-def main(port: int, device_config: str, process_config, quiet: bool, timeout: int):
+def main(port: int, device_config: str, process_config, quiet: bool, timeout: float):
     logs.setup()
 
     lifx = LifxServer(
         port,
+        timeout=timeout if timeout > 0 else None,
         device_config_path=device_config,
         process_config_path=process_config,
         verbose=not quiet,

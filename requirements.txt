@@ -1,5 +1,0 @@
-click
-coloredlogs
-matplotlib
-PyYAML
-pyzmq
