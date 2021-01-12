@@ -189,7 +189,7 @@ class LifxStruct:
 
         # Floating point minimum
         if register_type.value[1] == "f":
-            return -sys.float_info.min
+            return -sys.float_info.max
 
         n_bits, signed = self.get_nbits_and_signed(register_type)
         if signed:
