@@ -28,7 +28,6 @@ class LifxClient:
         ip: str = "127.0.0.1",
         port: int = server.SERVER_PORT,
         timeout: Optional[float] = None,
-        connect: bool = True,
     ):
         """Create a LIFX client
 
@@ -36,13 +35,10 @@ class LifxClient:
             ip: (str) The IP address to connect to.
             port: (int) The TCP port to connect to.
             timeout: (float) Timeout in milliseconds. None means no timeout.
-            connect: (bool) Connect to the TCP socket on init.
         """
         self._addr = (ip, port)
         self._timeout = timeout
         self._socket = None
-        if connect:
-            self.connect()
 
     def connect(self) -> None:
         if self._socket:
@@ -77,6 +73,7 @@ class LifxClient:
 
     def send_recv(self, cmd_and_args: str) -> server.ServerResponse:
         """Send a command to the server and receive a response message"""
+        self.connect()
         self._socket.send(cmd_and_args.encode())
         recv_bytes = self._socket.recv(BUFFER_SIZE)
         if not recv_bytes:
@@ -86,6 +83,7 @@ class LifxClient:
         size = int(size)
         while len(packet) < size:
             packet += self._socket.recv(BUFFER_SIZE)
+        self.close()
         return pickle.loads(packet)
 
 
@@ -106,7 +104,7 @@ class LifxClient:
     show_default=True,
     help="TCP Port of the LIFX server.",
 )
-@click.option("-t", "--timeout", type=float, show_default=True, help="Timeout in seconds.")
+@click.option("-t", "--timeout", type=float, help="Timeout in seconds.")
 @click.argument("cmd", nargs=-1)
 def main(ip: str, port: int, timeout: Optional[float], cmd: Tuple[str, ...]):
     """Control LIFX devices and processes."""
@@ -117,16 +115,13 @@ def main(ip: str, port: int, timeout: Optional[float], cmd: Tuple[str, ...]):
         sys.exit(1)
 
     exit_code = 1
-    timeout = 5 if (len(cmd) == 1 and timeout == -1) else timeout
     cmd = " ".join([shlex.quote(word) for word in cmd])
     lifx = LifxClient(ip, port, timeout=timeout)
     try:
         logging.info(lifx(cmd))
         exit_code = 0
-    except (socket.timeout, BrokenPipeError):
+    except (socket.timeout, ConnectionRefusedError):
         logging.critical("Cannot communicate with LIFX server.")
     except Exception as e:
         logs.log_exception(e, logging.error)
-    finally:
-        lifx.close()
     sys.exit(exit_code)

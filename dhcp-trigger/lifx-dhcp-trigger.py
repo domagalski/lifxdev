@@ -5,11 +5,11 @@ import pathlib
 import re
 import socket
 import subprocess as spr
+import time
 from typing import Dict, Union
 
 import click
 import yaml
-import zmq
 
 from lifxdev.messages import packet
 from lifxdev.server import client
@@ -17,9 +17,9 @@ from lifxdev.server import server
 from lifxdev.server import logs
 
 
-DEFAULT_LIFX_HOST = "localhost"
+DEFAULT_LIFX_HOST = "127.0.0.1"
 DEFAULT_LIFX_PORT = server.SERVER_PORT
-DEFAULT_LIFX_TIMEOUT = 30000
+DEFAULT_LIFX_TIMEOUT = 30
 DEFAULT_DHCP_TRIGGER_PORT = 16385
 DEFAULT_CONFIG_PATH = pathlib.Path.home() / ".lifx" / "dhcp-trigger.yaml"
 DHCP_RE_PATTERN = " ".join([r"\S+", ":".join([r"\S\S"] * 6), ".".join([r"\d+"] * 4)])
@@ -32,7 +32,7 @@ class DhcpTrigger:
         listen_port: int = DEFAULT_DHCP_TRIGGER_PORT,
         lifx_server_ip: str = DEFAULT_LIFX_HOST,
         lifx_server_port: int = DEFAULT_LIFX_PORT,
-        lifx_server_timeout: int = DEFAULT_LIFX_TIMEOUT,
+        lifx_server_timeout: float = DEFAULT_LIFX_TIMEOUT,
     ):
         """Create a DHCP trigger object.
 
@@ -51,7 +51,7 @@ class DhcpTrigger:
             listen_port: (int) The TCP port to listen on for new DHCP connection info.
             lifx_server_ip: (str) The IP address of the LIFX server.
             lifx_server_port: (int) The port of the LIFX server.
-            lifx_server_timeout: (int) The timeout in milliseconds for LIFX server commands.
+            lifx_server_timeout: (int) The timeout in seconds for LIFX server commands.
         """
         config_path = pathlib.Path(config_path)
         if not config_path.exists():
@@ -79,12 +79,12 @@ class DhcpTrigger:
         self._socket.listen(1)
 
         # Set up the LIFX client
+        lifx_server_timeout = lifx_server_timeout if lifx_server_timeout > 0 else None
         self._lifx = client.LifxClient(lifx_server_ip, lifx_server_port, lifx_server_timeout)
 
     def close(self) -> None:
         """Close sockets"""
         self._socket.close()
-        self._lifx.close()
 
     @staticmethod
     def _ping(ip: str, *, timeout: int) -> bool:
@@ -141,14 +141,16 @@ class DhcpTrigger:
         logging.info(f"Detected MAC address {mac} at IP: {ip}")
         cmd_label = self._all_macs[mac]
         cmd = self._commands[cmd_label]
+        do_log = True  # make logs less spammy
         while True:
             try:
                 response = self._lifx.send_recv(cmd)
                 break
-            except zmq.ZMQError:
-                logging.error("Cannot communicate with LIFX server. Retrying...")
-                self._lifx.close()
-                self._lifx.connect()
+            except (ConnectionRefusedError, socket.timeout):
+                if do_log:
+                    logging.error("Cannot communicate with LIFX server. Retrying...")
+                do_log = False
+                time.sleep(1)
 
         if response.response:
             logging.info(response.response)
@@ -188,10 +190,10 @@ class DhcpTrigger:
 )
 @click.option(
     "--lifx-timeout",
-    type=int,
+    type=float,
     default=DEFAULT_LIFX_TIMEOUT,
     show_default=True,
-    help="Timeout in milliseconds for LIFX server communications. -1 means no timeout.",
+    help="Timeout in seconds for LIFX server communications. <=0 means no timeout.",
 )
 def main(
     config_path: Union[str, pathlib.Path],
