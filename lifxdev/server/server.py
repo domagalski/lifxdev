@@ -246,6 +246,7 @@ class LifxServer:
         self._server_port = server_port
         self._device_config_path = pathlib.Path(device_config_path)
         self._process_config_path = pathlib.Path(process_config_path)
+        self._verbose = verbose
 
         # TODO add args for configuring the device manager on init.
         self._device_manager = device_manager.DeviceManager(
@@ -266,6 +267,7 @@ class LifxServer:
         self._socket.bind(("0.0.0.0", server_port))
         self._socket.listen(5)
         self._last_wait_timeout = False
+        logging.info(f"Listening on port: 0.0.0.0:{server_port}")
 
         # Set the command registry
         self._commands: Dict[str, Callable] = {}
@@ -293,11 +295,12 @@ class LifxServer:
 
     def recv_and_run(self) -> None:
         """Receive an incoming connection and run the command from it"""
+        log_func = logging.info if self._verbose else logging.debug
         if not self._last_wait_timeout:
-            logging.info("Waiting for command...")
+            log_func("Waiting for command...")
         try:
             conn, (ip, port) = self._socket.accept()
-            logging.info(f"Received client at address: {ip}:{port}")
+            log_func(f"Received client at address: {ip}:{port}")
             self._last_wait_timeout = False
         except socket.timeout:
             self._last_wait_timeout = True
@@ -322,7 +325,8 @@ class LifxServer:
 
         # Run the command and send the result to the client
         cmd_msg = " ".join([shlex.quote(word) for word in cmd_args])
-        logging.info(f"Running command: {cmd_label} {cmd_msg}")
+        log_func = logging.info if self._verbose else logging.debug
+        log_func(f"Running command: {cmd_label} {cmd_msg}")
         try:
             kwargs = vars(cmd.parser.parse_args(cmd_args))
             response = ServerResponse(response=cmd(**kwargs))
