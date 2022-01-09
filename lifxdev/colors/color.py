@@ -3,6 +3,7 @@
 import random
 from typing import List, NamedTuple, Union, Tuple
 
+import numpy as np
 from matplotlib import cm
 from matplotlib import colors
 
@@ -36,7 +37,7 @@ class Hsbk(NamedTuple):
     @classmethod
     def from_tuple(cls, hsbk: Union[Tuple, "Hsbk"]) -> "Hsbk":
         """Create a HSBK tuple from a normal tuple. Assume input is human-readable"""
-        if isinstance(hsbk, type(cls)):
+        if isinstance(hsbk, Hsbk):
             return hsbk
         hue, saturation, brightness, kelvin = hsbk
         return cls(hue=hue, saturation=saturation, brightness=brightness, kelvin=kelvin)
@@ -93,7 +94,7 @@ def get_colormap(
         selectors = [(idx + offset) % 1.0 for idx in selectors]
         random.shuffle(selectors)
 
-    rgb_array = colors.to_rgba_array(cmap(selectors)).transpose()[:3].transpose()
+    rgb_array = np.array(colors.to_rgba_array(cmap(selectors))).transpose()[:3].transpose()
     hsv_array = colors.rgb_to_hsv(rgb_array)
     hsbk_list = [Hsbk.from_tuple((360 * hsv[0],) + tuple(hsv[1:]) + (kelvin,)) for hsv in hsv_array]
     return hsbk_list

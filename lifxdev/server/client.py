@@ -69,11 +69,13 @@ class LifxClient:
         if response.error:
             raise response.error
         else:
+            assert response.response is not None
             return response.response
 
     def send_recv(self, cmd_and_args: str) -> server.ServerResponse:
         """Send a command to the server and receive a response message"""
         self.connect()
+        assert self._socket is not None
         self._socket.send(cmd_and_args.encode())
         recv_bytes = self._socket.recv(BUFFER_SIZE)
         if not recv_bytes:
@@ -115,10 +117,10 @@ def main(ip: str, port: int, timeout: Optional[float], cmd: Tuple[str, ...]):
         sys.exit(1)
 
     exit_code = 1
-    cmd = " ".join([shlex.quote(word) for word in cmd])
+    cmd_str = " ".join([shlex.quote(word) for word in cmd])
     lifx = LifxClient(ip, port, timeout=timeout)
     try:
-        logging.info(lifx(cmd))
+        logging.info(lifx(cmd_str))
         exit_code = 0
     except (socket.timeout, ConnectionRefusedError):
         logging.critical("Cannot communicate with LIFX server.")

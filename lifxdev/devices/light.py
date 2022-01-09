@@ -31,7 +31,7 @@ class LifxLight(device.LifxDevice):
         return self._max_brightness
 
     @max_brightness.setter
-    def max_brightness(self, value: float) -> float:
+    def max_brightness(self, value: float) -> None:
         if value <= 0:
             raise ValueError("Max brightness must be greater than zero.")
         elif value > 1:
@@ -45,6 +45,7 @@ class LifxLight(device.LifxDevice):
             The human-readable HSBK of the light.
         """
         response = self.send_recv(light_messages.Get(), res_required=True)
+        assert response is not None
         return color.Hsbk.from_packet(response.pop().payload["color"])
 
     def get_power(self) -> bool:
@@ -54,6 +55,7 @@ class LifxLight(device.LifxDevice):
             True if the light is powered on. False if off.
         """
         response = self.send_recv(light_messages.GetPower(), res_required=True)
+        assert response is not None
         return response.pop().payload["level"]
 
     def set_color(
@@ -107,6 +109,7 @@ class LifxInfraredLight(LifxLight):
     def get_infrared(self) -> float:
         """Get the current infrared level with 1.0 being the maximum."""
         response = self.send_recv(light_messages.GetInfrared(), res_required=True)
+        assert response is not None
         ir_state = response.pop().payload
         return ir_state["brightness"] / ir_state.get_max("brightness")
 

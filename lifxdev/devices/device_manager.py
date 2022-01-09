@@ -496,6 +496,7 @@ if __name__ == "__main__":
     for device_info in sorted(devices.values(), key=lambda d: d.ip):
         product = device_info.product_name
         ip = device_info.ip
+        port = device_info.port
         label = device_info.label
-        logging.info(f"{ip}:\tDiscovered {product}: {label}")
+        logging.info(f"{ip}:\tDiscovered {product}: {label}, {port}")
     logging.info(f"Total number of devices: {len(devices)}")

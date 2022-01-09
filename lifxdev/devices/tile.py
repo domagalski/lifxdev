@@ -21,7 +21,9 @@ class LifxTile(light.LifxLight):
 
     def get_chain(self) -> packet.LifxResponse:
         """Get information about the current tile chain"""
-        response = self.send_recv(tile_messages.GetDeviceChain(), res_required=True).pop()
+        response = self.send_recv(tile_messages.GetDeviceChain(), res_required=True)
+        assert response is not None
+        response = response.pop()
         self._num_tiles = response.payload["total_count"]
         return response
 
@@ -46,6 +48,7 @@ class LifxTile(light.LifxLight):
         get_request["tile_index"] = tile_index
         get_request["length"] = length
         responses = self.send_recv(get_request, res_required=True, retry_recv=length > 1)
+        assert responses is not None
         matrix_list: List[List[color.Hsbk]] = []
         for state in responses:
             matrix_list.append([color.Hsbk.from_packet(hsbk) for hsbk in state.payload["colors"]])
@@ -79,7 +82,9 @@ class LifxTile(light.LifxLight):
         # This is hard to not be some gnarly for loop
         response: Optional[packet.LifxResponse] = None
         for ii in range(num_tiles):
-            colors_per_tile = [None] * TILE_WIDTH ** 2
+            colors_per_tile = [
+                color.Hsbk(hue=0, saturation=0, brightness=0, kelvin=0)
+            ] * TILE_WIDTH ** 2
             for jj in range(sq_per_tile):
                 col = jj % division
                 row = jj // division

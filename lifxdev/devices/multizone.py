@@ -24,6 +24,7 @@ class LifxMultiZone(light.LifxLight):
             List of human-readable HSBK tuples representing the device.
         """
         response = self.send_recv(multizone_messages.GetExtendedColorZones(), res_required=True)
+        assert response is not None
         payload = response[0].payload
         self._num_zones = payload["count"]
         multizone_colors = payload["colors"][: self._num_zones]

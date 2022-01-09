@@ -109,7 +109,7 @@ def _add_arg(
         if not hasattr(function, "arg_list"):
             function.arg_list = []
 
-        kwargs = {"help": help_msg}
+        kwargs: Dict[str, Any] = {"help": help_msg}
         if arg_type == bool:
             kwargs["action"] = "store_true"
         else:
@@ -521,6 +521,7 @@ class LifxServer:
     ) -> str:
         lifx_device = self._get_device_or_group(label)
 
+        assert lifx_device is not None
         if any([hue is None, saturation is None, brightness is None]):
             if isinstance(lifx_device, device_manager.DeviceGroup):
                 raise UnknownServerCommand("Cannot get color state of a device group.")
@@ -585,6 +586,7 @@ class LifxServer:
 
         # Set the colormap
         lifx_device = self._get_device_or_group(label)
+        assert lifx_device is not None
         if hasattr(lifx_device, "set_colormap"):
             kwargs = {"cmap": colormap, "duration": duration}
             if isinstance(lifx_device, (tile.LifxTile, device_manager.DeviceGroup)):
@@ -616,6 +618,7 @@ class LifxServer:
         machine: bool,
     ) -> str:
         lifx_device = self._get_device_or_group(label)
+        assert lifx_device is not None
         if not state:
             if isinstance(lifx_device, device_manager.DeviceGroup):
                 raise UnknownServerCommand("Cannot get power state of a device group.")

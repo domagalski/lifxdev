@@ -18,7 +18,7 @@ class DeviceTest(unittest.TestCase):
         )
 
     def test_set_power(self):
-        self.lifx.set_power(True)
+        self.assertIsNotNone(self.lifx.set_power(True, ack_required=True))
         self.assertTrue(self.lifx.get_power())
 
 

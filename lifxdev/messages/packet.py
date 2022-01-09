@@ -62,7 +62,7 @@ class LifxStruct:
             if kw not in self._names:
                 name = type(self).__name__
                 if hasattr(self, "name"):
-                    name = self.name
+                    name = getattr(self, "name")
                 raise ValueError(f"Invalid keyword arg for {name}: {kw}")
 
         self._types = collections.OrderedDict()
