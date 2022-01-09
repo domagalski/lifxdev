@@ -160,7 +160,6 @@ file:
 ```
 example-device:
   type: bulb
-  mac: <mac_addr>
   ip: <ip_addr>
 
 example-group:
@@ -168,11 +167,9 @@ example-group:
   devices:
     device-name-a:
       type: multizone
-      mac: <mac_addr>
       ip: <ip_addr>
     device-name-b:
       type: bulb
-      mac: <mac_addr>
       ip: <ip_addr>
     subgroup-name:
       type: group
@@ -182,7 +179,7 @@ example-group:
 Items in the config can be either devices or groups, indicated by the `type`
 field, which is required for every device or group in the configuration. The
 value for `type` can be either `light`, `infrared`, `multizone`, or `tile`.
-Each device also requires that its MAC and IP are provided.
+Each device also requires that its IP address is provided.
 
 Groups require the `type: group` field and the `devices` field that's a dict of
 devices or sub-groups. There's no maximum recursion depth for groups, so a
@@ -257,7 +254,7 @@ The file `~/.lifx/dhcp-trigger.yaml` must be configured as follows:
     - ...
 ```
 
-The `cmd_label` is any label to denote the name of a list of mac addresses and
+The `cmd_label` is any label to denote the name of a list of MAC addresses and
 the LIFX server command to run when one of those MAC addresses is detected. As
 such, multiple command labels can be listed in a configuration file. The only
 real requirement is that there is a `command` field nested under each label
