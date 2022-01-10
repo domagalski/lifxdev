@@ -441,7 +441,6 @@ class DeviceManager(device.LifxDevice):
                 devices_and_groups[name] = self._load_device_group(group_devices, max_brightness)
 
             else:
-                mac = conf.get("mac")
                 port = conf.get("port", packet.LIFX_PORT)
                 klass = _DEVICE_TYPES[device_type.name]
                 devices_and_groups[name] = klass(
@@ -449,7 +448,6 @@ class DeviceManager(device.LifxDevice):
                     port=port,
                     label=name,
                     max_brightness=max_brightness,
-                    mac_addr=mac,
                     comm_init=self._comm_init,
                     verbose=self._verbose,
                     **kwargs,
@@ -459,30 +457,36 @@ class DeviceManager(device.LifxDevice):
 
     @_require_config_loaded
     def get_all_devices(self) -> Dict[str, Any]:
+        assert self._root_device_group is not None
         return self._root_device_group.get_all_devices()
 
     @_require_config_loaded
     def get_all_groups(self) -> Dict[str, DeviceGroup]:
+        assert self._root_device_group is not None
         return self._root_device_group.get_all_groups()
 
     @_require_config_loaded
     def get_device(self, name: str) -> Any:
         """Get a device by its label."""
+        assert self._root_device_group is not None
         return self._root_device_group.get_device(name)
 
     @_require_config_loaded
     def get_group(self, name: str) -> DeviceGroup:
         """Get a group by its label."""
+        assert self._root_device_group is not None
         return self._root_device_group.get_group(name)
 
     @_require_config_loaded
     def has_device(self, name: str) -> bool:
         """Check if a device exists."""
+        assert self._root_device_group is not None
         return self._root_device_group.has_device(name)
 
     @_require_config_loaded
     def has_group(self, name: str) -> bool:
         """Check if a group exists."""
+        assert self._root_device_group is not None
         return self._root_device_group.has_group(name)
 
 

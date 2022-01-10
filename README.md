@@ -24,7 +24,7 @@ sudo python setup.py install
 ## Security
 
 LIFX lights can be controlled by anyone on name same WiFi network as you. So
-can the ZMQ server scripts in this repository. Please determine your WiFi
+can the TCP server scripts in this repository. Please determine your WiFi
 network configurations accordingly.
 
 ## Usage
