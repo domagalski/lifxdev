@@ -159,7 +159,7 @@ file:
 
 ```
 example-device:
-  type: bulb
+  type: light
   ip: <ip_addr>
 
 example-group:
@@ -169,7 +169,7 @@ example-group:
       type: multizone
       ip: <ip_addr>
     device-name-b:
-      type: bulb
+      type: light
       ip: <ip_addr>
     subgroup-name:
       type: group
