@@ -5,7 +5,7 @@ import setuptools
 pkg_name = "lifxdev"
 setuptools.setup(
     name=pkg_name,
-    version="1.3.7",
+    version="1.3.8",
     description="LIFX device control over LAN.",
     author="Rachel Simone Domagalski",
     license="GPL",
@@ -20,7 +20,7 @@ setuptools.setup(
     install_requires=[
         "click>=7.1",
         "coloredlogs>=15.0",
-        "matplotlib>=3.3",
+        "matplotlib>=3.6",
         "PyYAML>=5.3",
     ],
 )

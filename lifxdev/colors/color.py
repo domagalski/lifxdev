@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import random
-from typing import List, NamedTuple, Union, Tuple
+from typing import NamedTuple, Union
 
 import numpy as np
-from matplotlib import cm
+from matplotlib import colormaps
 from matplotlib import colors
 
 from lifxdev.messages import packet
@@ -35,7 +35,7 @@ class Hsbk(NamedTuple):
         return cls(hue=hue, saturation=saturation, brightness=brightness, kelvin=kelvin)
 
     @classmethod
-    def from_tuple(cls, hsbk: Union[Tuple, "Hsbk"]) -> "Hsbk":
+    def from_tuple(cls, hsbk: Union[tuple, "Hsbk"]) -> "Hsbk":
         """Create a HSBK tuple from a normal tuple. Assume input is human-readable"""
         if isinstance(hsbk, Hsbk):
             return hsbk
@@ -63,12 +63,12 @@ class Hsbk(NamedTuple):
 
 
 def get_colormap(
-    cmap: Union[str, colors.Colormap],
+    cmap: str | colors.Colormap,
     length: int,
-    kelvin: int = 5500,
+    kelvin: int = KELVIN,
     *,
     randomize: bool = False,
-) -> List[Hsbk]:
+) -> list[Hsbk]:
     """Get a colormap as HSBK values
 
     Args:
@@ -81,7 +81,8 @@ def get_colormap(
         A list of HSBK values for the colormap.
     """
     if isinstance(cmap, str):
-        cmap = cm.get_cmap(cmap)
+        cmap = colormaps.get_cmap(cmap)
+    assert isinstance(cmap, colors.Colormap)
 
     if length < 1:
         raise ValueError("length must be at least one.")
@@ -100,6 +101,6 @@ def get_colormap(
     return hsbk_list
 
 
-def get_all_colormaps() -> List[str]:
+def get_all_colormaps() -> list[str]:
     """Get a list of all colormaps"""
-    return sorted(cm._cmap_registry)
+    return sorted(colormaps.keys())
