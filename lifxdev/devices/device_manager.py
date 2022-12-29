@@ -90,7 +90,7 @@ class DeviceGroup:
     def has_group(self, name: str) -> bool:
         return name in self._all_groups
 
-    def set_color(self, hsbk: light.COLOR_T, *, duration: float = 0.0) -> None:
+    def set_color(self, hsbk: color.Hsbk | light.COLOR_T, *, duration: float = 0.0) -> None:
         """Set the color of all lights in the device group.
 
         Args:

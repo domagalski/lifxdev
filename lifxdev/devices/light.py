@@ -7,7 +7,7 @@ from lifxdev.devices import device
 from lifxdev.messages import light_messages
 from lifxdev.messages import packet
 
-COLOR_T = color.Hsbk | tuple[float, float, float, int]
+COLOR_T = tuple[float, float, float, int]
 
 
 class LifxLight(device.LifxDevice):
@@ -60,7 +60,7 @@ class LifxLight(device.LifxDevice):
 
     def set_color(
         self,
-        hsbk: COLOR_T,
+        hsbk: color.Hsbk | COLOR_T,
         *,
         duration: float = 0.0,
         ack_required: bool = False,
