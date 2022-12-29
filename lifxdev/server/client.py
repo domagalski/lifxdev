@@ -5,7 +5,6 @@ import pickle
 import shlex
 import socket
 import sys
-from typing import Optional, Tuple
 
 import click
 
@@ -27,7 +26,7 @@ class LifxClient:
         self,
         ip: str = "127.0.0.1",
         port: int = server.SERVER_PORT,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ):
         """Create a LIFX client
 
@@ -108,7 +107,7 @@ class LifxClient:
 )
 @click.option("-t", "--timeout", type=float, help="Timeout in seconds.")
 @click.argument("cmd", nargs=-1)
-def main(ip: str, port: int, timeout: Optional[float], cmd: Tuple[str, ...]):
+def main(ip: str, port: int, timeout: float | None, cmd: tuple[str, ...]):
     """Control LIFX devices and processes."""
 
     logs.setup()

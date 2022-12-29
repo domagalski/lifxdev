@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-from typing import List, Optional, Union
-
 from matplotlib import colors
 
 from lifxdev.colors import color
@@ -15,9 +13,9 @@ TILE_WIDTH = 8
 class LifxTile(light.LifxLight):
     """Tile device control"""
 
-    def __init__(self, *args, length: Optional[int] = None, **kwargs):
+    def __init__(self, *args, length: int | None = None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._num_tiles: Optional[int] = length
+        self._num_tiles: int | None = length
 
     def get_chain(self) -> packet.LifxResponse:
         """Get information about the current tile chain"""
@@ -34,7 +32,7 @@ class LifxTile(light.LifxLight):
         else:
             return self.get_chain().payload["total_count"]
 
-    def get_tile_colors(self, tile_index: int, *, length: int = 1) -> List[List[color.Hsbk]]:
+    def get_tile_colors(self, tile_index: int, *, length: int = 1) -> list[list[color.Hsbk]]:
         """Get the color state for individual tiles.
 
         Args:
@@ -49,20 +47,20 @@ class LifxTile(light.LifxLight):
         get_request["length"] = length
         responses = self.send_recv(get_request, res_required=True, retry_recv=length > 1)
         assert responses is not None
-        matrix_list: List[List[color.Hsbk]] = []
+        matrix_list: list[list[color.Hsbk]] = []
         for state in responses:
             matrix_list.append([color.Hsbk.from_packet(hsbk) for hsbk in state.payload["colors"]])
         return matrix_list
 
     def set_colormap(
         self,
-        cmap: Union[str, colors.Colormap],
+        cmap: str | colors.Colormap,
         *,
         duration: float = 0.0,
         kelvin: int = color.KELVIN,
         division: int = 2,
         ack_required: bool = False,
-    ) -> Optional[packet.LifxResponse]:
+    ) -> packet.LifxResponse | None:
         """Set the tile chain to a matplotlib colormap.
 
         Args:
@@ -76,19 +74,19 @@ class LifxTile(light.LifxLight):
             raise ValueError("Cannot evenly subdivide tiles.")
         num_tiles = self.get_num_tiles()
         sq_width = TILE_WIDTH // division
-        sq_per_tile = division ** 2
+        sq_per_tile = division**2
         colormap = color.get_colormap(cmap, num_tiles * sq_per_tile, kelvin, randomize=True)
 
         # This is hard to not be some gnarly for loop
-        response: Optional[packet.LifxResponse] = None
+        response: packet.LifxResponse | None = None
         for ii in range(num_tiles):
             colors_per_tile = [
                 color.Hsbk(hue=0, saturation=0, brightness=0, kelvin=0)
-            ] * TILE_WIDTH ** 2
+            ] * TILE_WIDTH**2
             for jj in range(sq_per_tile):
                 col = jj % division
                 row = jj // division
-                for kk in range(sq_width ** 2):
+                for kk in range(sq_width**2):
                     sq_col = kk % sq_width
                     sq_row = kk // sq_width
                     tile_idx = sq_col + col * sq_width + TILE_WIDTH * (sq_row + row * sq_width)
@@ -106,12 +104,12 @@ class LifxTile(light.LifxLight):
     def set_tile_colors(
         self,
         tile_index: int,
-        tile_colors: List[color.Hsbk],
+        tile_colors: list[color.Hsbk],
         *,
         duration: float = 0.0,
         length: int = 1,
         ack_required: bool = False,
-    ) -> Optional[packet.LifxResponse]:
+    ) -> packet.LifxResponse | None:
         """Set the tile colors
 
         Args:

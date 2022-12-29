@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import dataclasses
 import inspect
 import json
 import logging
@@ -10,7 +11,8 @@ import random
 import shlex
 import socket
 import threading
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Type, Union
+from collections.abc import Callable, Iterable
+from typing import Any
 
 import click
 
@@ -87,11 +89,11 @@ def _is_command(item: Any) -> bool:
 def _add_arg(
     *flags,
     help_msg: str,
-    arg_type: Type = str,
-    default: Optional[Any] = None,
+    arg_type: type = str,
+    default: Any | None = None,
     required: bool = False,
-    choices: Optional[Union[List, Set]] = None,
-    nargs: Optional[Union[int, str]] = None,
+    choices: Iterable[str] | None = None,
+    nargs: int | str | None = None,
 ) -> Callable:
     """Register argument parsing options to a server command
 
@@ -109,7 +111,7 @@ def _add_arg(
         if not hasattr(function, "arg_list"):
             function.arg_list = []
 
-        kwargs: Dict[str, Any] = {"help": help_msg}
+        kwargs: dict[str, Any] = {"help": help_msg}
         if arg_type == bool:
             kwargs["action"] = "store_true"
         else:
@@ -118,7 +120,7 @@ def _add_arg(
         if flags[0][0] == "-":
             kwargs["required"] = required
         if choices:
-            kwargs["choices"] = choices
+            kwargs["choices"] = frozenset(choices)
         if nargs:
             kwargs["nargs"] = nargs
 
@@ -128,9 +130,10 @@ def _add_arg(
     return _add_arg_to_method
 
 
-class ServerResponse(NamedTuple):
-    response: Optional[str] = None
-    error: Optional[Exception] = None
+@dataclasses.dataclass
+class ServerResponse:
+    response: str | None = None
+    error: Exception | None = None
 
 
 class _ThreadRunner:
@@ -190,7 +193,7 @@ class _ThreadPool:
         """Create a thread pool and set the maximum number of threads"""
         self._lock = threading.Lock()
         self._num_threads = num_threads
-        self._threads: Dict[int, _ThreadRunner] = {}
+        self._threads: dict[int, _ThreadRunner] = {}
 
     def add(self, func: Callable):
         """Add a function to the thread pool.
@@ -227,11 +230,11 @@ class LifxServer:
         self,
         server_port: int = SERVER_PORT,
         *,
-        device_config_path: Union[str, pathlib.Path] = DEVICE_CONFIG,
-        process_config_path: Union[str, pathlib.Path] = PROCESS_CONFIG,
-        timeout: Optional[float] = SERVER_TIMEOUT,
+        device_config_path: str | pathlib.Path = DEVICE_CONFIG,
+        process_config_path: str | pathlib.Path = PROCESS_CONFIG,
+        timeout: float | None = SERVER_TIMEOUT,
         verbose: bool = True,
-        comm_init: Optional[Callable] = None,
+        comm_init: Callable | None = None,
     ):
         """Create a LIFX server
 
@@ -270,7 +273,7 @@ class LifxServer:
         logging.info(f"Listening on port: 0.0.0.0:{server_port}")
 
         # Set the command registry
-        self._commands: Dict[str, Callable] = {}
+        self._commands: dict[str, Callable] = {}
         for _, cmd in inspect.getmembers(self, predicate=_is_command):
             self._commands[cmd.label] = cmd
 
@@ -278,7 +281,7 @@ class LifxServer:
         self._threadpool.close()
         self._socket.close()
 
-    def _get_device_or_group(self, label: str) -> Optional[Any]:
+    def _get_device_or_group(self, label: str) -> Any | None:
         """Get a LIFX device object or device group object by label.
 
         Returns:
@@ -376,7 +379,7 @@ class LifxServer:
 
     @_command("reload", "Reload device or process config.")
     @_add_arg("config", nargs="?", choices={"device", "process"}, help_msg="The config to reload.")
-    def _reload_config(self, config: Optional[str]) -> str:
+    def _reload_config(self, config: str | None) -> str:
         config_loaders = {
             "device": {
                 "method": self._device_manager.load_config,
@@ -408,10 +411,10 @@ class LifxServer:
         return response
 
     @staticmethod
-    def _get_device_info(device_list: List[light.LifxLight]) -> Dict[str, Dict[str, str]]:
+    def _get_device_info(device_list: list[light.LifxLight]) -> dict[str, dict[str, str]]:
         """Get attributes about a list of devices"""
-        device_dict: Dict[str, Dict[str, str]] = {}
-        for lifx_device in sorted(device_list, key=lambda l: l.label):
+        device_dict: dict[str, dict[str, str]] = {}
+        for lifx_device in sorted(device_list, key=lambda l: l.label):  # noqa
             device_dict[lifx_device.label] = {
                 "type": type(lifx_device).__name__,
                 "ip": lifx_device.ip,
@@ -419,7 +422,7 @@ class LifxServer:
         return device_dict
 
     @staticmethod
-    def _format_device_attributes(device_dict: Dict[str, Dict[str, str]]) -> str:
+    def _format_device_attributes(device_dict: dict[str, dict[str, str]]) -> str:
         """Pretty-format device attributes into a human-readable table"""
         msg_lines = []
         for label, attributes in device_dict.items():
@@ -440,7 +443,7 @@ class LifxServer:
     @_command("devices", "Show every available device.")
     @_add_arg("label", nargs="?", help_msg="Name of a device to query.")
     @_add_arg("--to-json", arg_type=bool, help_msg="Return output in json format.")
-    def _show_devices(self, label: Optional[str], to_json: bool) -> str:
+    def _show_devices(self, label: str | None, to_json: bool) -> str:
         if label:
             lifx_device = self._device_manager.get_device(label)
             dev_info = self._get_device_info([lifx_device])[label]
@@ -468,7 +471,7 @@ class LifxServer:
     @_command("groups", "Show every available group.")
     @_add_arg("label", nargs="?", help_msg="Name of a group to query.")
     @_add_arg("--to-json", arg_type=bool, help_msg="Return output in json format.")
-    def _show_groups(self, label: Optional[str], to_json: bool) -> str:
+    def _show_groups(self, label: str | None, to_json: bool) -> str:
         if label:
             lifx_group = self._device_manager.get_group(label)
             device_dict = self._get_device_info(lifx_group.get_all_devices().values())
@@ -512,9 +515,9 @@ class LifxServer:
         self,
         *,
         label: str,
-        hue: Optional[float],
-        saturation: Optional[float],
-        brightness: Optional[float],
+        hue: float | None,
+        saturation: float | None,
+        brightness: float | None,
         kelvin: int,
         duration: float,
         machine: bool,
@@ -568,7 +571,7 @@ class LifxServer:
         self,
         *,
         label: str,
-        colormap: Optional[str],
+        colormap: str | None,
         duration: float,
         division: int,
     ) -> str:
@@ -613,7 +616,7 @@ class LifxServer:
         self,
         *,
         label: str,
-        state: Optional[str],
+        state: str | None,
         duration: float,
         machine: bool,
     ) -> str:
@@ -635,7 +638,7 @@ class LifxServer:
 
     def _check_running_processes(
         self, *, to_json: bool = False, kill_oneshot: bool = False
-    ) -> Optional[str]:
+    ) -> str | None:
         """Check running processes for errors and construct a message"""
         failures = self._process_manager.check_failures(kill_oneshot=kill_oneshot)
         if to_json:
@@ -731,14 +734,14 @@ class LifxServer:
     @_command("start", "Start a LIFX process.")
     @_add_arg("label", help_msg="Label of the process to start.")
     @_add_arg("argv", nargs=argparse.REMAINDER, help_msg="Extra args to pass into the process.")
-    def _start_process(self, label: str, argv: List[str]) -> str:
+    def _start_process(self, label: str, argv: list[str]) -> str:
         self._process_manager.start(label, argv)
         return f"Started process: {label}"
 
     @_command("restart", "Restart a LIFX process.")
     @_add_arg("label", help_msg="Label of the process to restart.")
     @_add_arg("argv", nargs=argparse.REMAINDER, help_msg="Extra args to pass into the process.")
-    def _restart_process(self, label: str, argv: List[str]) -> str:
+    def _restart_process(self, label: str, argv: list[str]) -> str:
         self._process_manager.restart(label, argv)
         return f"Restarted process: {label}"
 

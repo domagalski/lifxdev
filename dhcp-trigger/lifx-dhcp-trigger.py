@@ -79,8 +79,8 @@ class DhcpTrigger:
         self._socket.listen(1)
 
         # Set up the LIFX client
-        lifx_server_timeout = lifx_server_timeout if lifx_server_timeout > 0 else None
-        self._lifx = client.LifxClient(lifx_server_ip, lifx_server_port, lifx_server_timeout)
+        opt_timeout = lifx_server_timeout if lifx_server_timeout > 0 else None
+        self._lifx = client.LifxClient(lifx_server_ip, lifx_server_port, opt_timeout)
 
     def close(self) -> None:
         """Close sockets"""

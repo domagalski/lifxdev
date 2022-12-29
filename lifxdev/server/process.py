@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 
-import copy
 import pathlib
 import subprocess as spr
 import sys
 import time
-from typing import Dict, List, Optional, Set, Tuple, Union
 
 import yaml
 
@@ -34,9 +32,9 @@ class Process:
     def __init__(
         self,
         label: str,
-        filename: Union[str, pathlib.Path],
+        filename: str | pathlib.Path,
         *,
-        devices: List[str] = [],
+        devices: list[str] = [],
         ongoing: bool = False,
         immortal: bool = False,
     ):
@@ -57,10 +55,10 @@ class Process:
         if not isinstance(immortal, bool):
             raise ValueError("immortal must be a boolean.")
 
-        self._cmd_args: Optional[str] = None
-        self._proc: Optional[spr.Popen] = None
+        self._cmd_args: list[str] | None = None
+        self._proc: spr.Popen | None = None
         self._running = False
-        self._devices = set(devices)
+        self._devices = frozenset(devices)
         self._ongoing = ongoing
         self._immortal = immortal if ongoing else False
 
@@ -81,8 +79,8 @@ class Process:
             return False
 
     @property
-    def devices(self) -> Set:
-        return copy.deepcopy(self._devices)
+    def devices(self) -> frozenset:
+        return self._devices
 
     @property
     def ongoing(self) -> bool:
@@ -92,7 +90,7 @@ class Process:
     def immortal(self) -> bool:
         return self._immortal
 
-    def check_failure(self) -> Optional[spr.CompletedProcess]:
+    def check_failure(self) -> spr.CompletedProcess | None:
         """Check that a running processes is still running.
 
         Return:
@@ -120,7 +118,7 @@ class Process:
                 while self._proc.poll() is None:
                     time.sleep(0.001)
 
-    def start(self, argv: List[str] = []) -> None:
+    def start(self, argv: list[str] = []) -> None:
         """Start the process"""
         # Processes that are already running can't be duplicated.
         # If the process, however, is not ongoing, cleanly stop before restarting.
@@ -134,7 +132,7 @@ class Process:
         self._cmd_args = []
         if self._filename.name.endswith(".py"):
             self._cmd_args.append(sys.executable)
-        self._cmd_args.append(self._filename)
+        self._cmd_args.append(str(self._filename))
         self._cmd_args += argv
 
         # Run the process.
@@ -153,6 +151,8 @@ class Process:
 
     def wait(self) -> spr.CompletedProcess:
         """Wait for the process to complete and return its output"""
+        assert self._proc
+        assert self._cmd_args
         stdout, stderr = self._proc.communicate()
         returncode = self._proc.returncode
         self._proc = None
@@ -162,14 +162,14 @@ class Process:
 class ProcessManager:
     """Manage pre-defined processes."""
 
-    def __init__(self, config_path: Union[str, pathlib.Path] = CONFIG_PATH):
-        self._all_processes: Dict[str, Process] = {}
+    def __init__(self, config_path: str | pathlib.Path = CONFIG_PATH):
+        self._all_processes: dict[str, Process] = {}
 
         self._config_path = pathlib.Path(config_path)
         if self._config_path.exists():
             self.load_config()
 
-    def load_config(self, config_path: Optional[Union[str, pathlib.Path]] = None) -> None:
+    def load_config(self, config_path: str | pathlib.Path | None = None) -> None:
         """Load a config and setup the process manager.
 
         Any running process is stopped before a reload.
@@ -191,7 +191,7 @@ class ProcessManager:
             raise ProcessConfigError("Config file missing PROC_DIR.")
 
         # Load Process objects for everything in the config
-        self._all_processes: Dict[str, Process] = {}
+        self._all_processes: dict[str, Process] = {}
         for label, config in config_dict.items():
             filename = config.pop("filename", None)
             if filename:
@@ -208,7 +208,7 @@ class ProcessManager:
     def has_process(self, label: str) -> bool:
         return label in self._all_processes
 
-    def check_failures(self, *, kill_oneshot: bool = False) -> Dict[str, spr.CompletedProcess]:
+    def check_failures(self, *, kill_oneshot: bool = False) -> dict[str, spr.CompletedProcess]:
         """Check all processes for failures.
 
         Args:
@@ -217,7 +217,7 @@ class ProcessManager:
         Returns:
             Return a dict with labels and check_failure() for each process
         """
-        failures: Dict[str, Optional[spr.CompletedProcess]] = {}
+        failures: dict[str, spr.CompletedProcess] = {}
         for label, process in self._all_processes.items():
             if not process.ongoing and kill_oneshot:
                 process.kill()
@@ -226,14 +226,14 @@ class ProcessManager:
                 failures[label] = output
         return failures
 
-    def get_available_and_running(self) -> Tuple[List[Process], List[Process]]:
+    def get_available_and_running(self) -> tuple[list[Process], list[Process]]:
         """Get all processes.
 
         Returns:
             available_processes, running_processes
         """
-        available_processes: List[Process] = []
-        running_processes: List[Process] = []
+        available_processes: list[Process] = []
+        running_processes: list[Process] = []
         for label in self._all_processes:
             process = self.get_process(label)
             if process.running:
@@ -245,10 +245,10 @@ class ProcessManager:
     def killall(self, kill_immortal: bool = False) -> None:
         """Kill all processes except immortal processes"""
         for process in self._all_processes.values():
-            if not process.immortal:
+            if kill_immortal or not process.immortal:
                 process.stop()
 
-    def restart(self, label: str, argv: List[str] = []) -> None:
+    def restart(self, label: str, argv: list[str] = []) -> None:
         """Start a process.
 
         Return:
@@ -257,7 +257,7 @@ class ProcessManager:
         self.stop(label)
         self.start(label, argv)
 
-    def start(self, label: str, argv: List[str] = []) -> None:
+    def start(self, label: str, argv: list[str] = []) -> None:
         """Start a process.
 
         Return:

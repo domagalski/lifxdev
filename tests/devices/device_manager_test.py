@@ -3,6 +3,7 @@
 import logging
 import pathlib
 import unittest
+from typing import cast
 
 import coloredlogs
 
@@ -28,7 +29,9 @@ class DeviceManagerTest(unittest.TestCase):
         )
 
     def test_get_devices(self):
-        state_service = self.lifx.get_devices_on_network()[0].payload
+        response = self.lifx.get_devices_on_network()
+        self.assertIsNotNone(response)
+        state_service = cast(list[packet.LifxResponse], response)[0].payload
         self.assertEqual(state_service["port"], packet.LIFX_PORT)
 
     def test_get_label(self):

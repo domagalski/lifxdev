@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-from typing import List, Optional, Union
-
 from matplotlib import colors
 
 from lifxdev.colors import color
@@ -13,11 +11,11 @@ from lifxdev.messages import packet
 class LifxMultiZone(light.LifxLight):
     """MultiZone device (beam, strip) control"""
 
-    def __init__(self, *args, length: Optional[int] = None, **kwargs):
+    def __init__(self, *args, length: int | None = None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._num_zones: Optional[int] = length
+        self._num_zones: int | None = length
 
-    def get_multizone(self) -> List[color.Hsbk]:
+    def get_multizone(self) -> list[color.Hsbk]:
         """Get a list the colors on the MultiZone.
 
         Returns:
@@ -39,12 +37,12 @@ class LifxMultiZone(light.LifxLight):
 
     def set_colormap(
         self,
-        cmap: Union[str, colors.Colormap],
+        cmap: str | colors.Colormap,
         *,
         duration: float = 0.0,
         kelvin: int = color.KELVIN,
         ack_required: bool = False,
-    ) -> Optional[packet.LifxResponse]:
+    ) -> packet.LifxResponse | None:
         """Set the zone to a matplotlib colormap.
 
         Args:
@@ -59,12 +57,12 @@ class LifxMultiZone(light.LifxLight):
 
     def set_multizone(
         self,
-        multizone_colors: List[color.Hsbk],
+        multizone_colors: list[color.Hsbk],
         *,
         duration: float = 0.0,
         index: int = 0,
         ack_required: bool = False,
-    ) -> Optional[packet.LifxResponse]:
+    ) -> packet.LifxResponse | None:
         """Set the MultiZone colors.
 
         Args:

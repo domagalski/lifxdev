@@ -4,7 +4,6 @@
 
 import enum
 import socket
-from typing import Dict, Optional, Tuple
 
 from lifxdev.messages import packet
 
@@ -33,7 +32,7 @@ class MockSocket:
         self,
         *args,
         label: str = "LIFX mock",
-        mac_addr: Optional[str] = None,
+        mac_addr: str | None = None,
         product: Product = Product.NONE,
         **kwargs,
     ):
@@ -45,7 +44,7 @@ class MockSocket:
         self._timeout = None
         self._sequence = 0
         self._first_response_query = False
-        self._responses: Dict[str, bytes] = {}
+        self._responses: dict[str, bytes] = {}
         for msg_num in sorted(packet._MESSAGE_TYPES.keys()):
             message = packet._MESSAGE_TYPES[msg_num]()
             name = message.name
@@ -76,18 +75,18 @@ class MockSocket:
                 res_required=True,
             )
 
-    def set_label(self, label: str, addr: Tuple[str, int] = ("127.0.0.1", packet.LIFX_PORT)):
+    def set_label(self, label: str, addr: tuple[str, int] = ("127.0.0.1", packet.LIFX_PORT)):
         """Set the label returned in messages"""
         self.update_payload("State", addr, label=label)
         self.update_payload("StateLabel", addr, label=label)
 
     def set_product(
-        self, product: Product, addr: Tuple[str, int] = ("127.0.0.1", packet.LIFX_PORT)
+        self, product: Product, addr: tuple[str, int] = ("127.0.0.1", packet.LIFX_PORT)
     ):
         """Set the product returned in messages"""
         self.update_payload("StateVersion", addr, product=product.value)
 
-    def update_payload(self, register_name: str, addr: Tuple[str, int], **kwargs):
+    def update_payload(self, register_name: str, addr: tuple[str, int], **kwargs):
         """Update a payload's bytes registers"""
         payload = packet.PacketComm.decode_bytes(self._responses[register_name], addr).payload
         for key, value in kwargs.items():
@@ -107,7 +106,7 @@ class MockSocket:
         """Return the blocking status"""
         return self._blocking
 
-    def gettimeout(self) -> Optional[float]:
+    def gettimeout(self) -> float | None:
         """Return the timeout"""
         return self._timeout
 
@@ -115,11 +114,11 @@ class MockSocket:
         """Set the blocking flag"""
         self._blocking = flag
 
-    def settimeout(self, timeout: Optional[float]):
+    def settimeout(self, timeout: float | None):
         """Set the timeout"""
         self._timeout = timeout
 
-    def sendto(self, message_bytes: bytes, addr: Tuple[str, int]):
+    def sendto(self, message_bytes: bytes, addr: tuple[str, int]):
         """Mock sendto by spoofing the bytes to be returned on the next recvfrom"""
         self._last_addr = addr
 
@@ -166,7 +165,7 @@ class MockSocket:
         self._first_response_query = True
         return len(message_bytes)
 
-    def recvfrom(self, buffer_size) -> Tuple[bytes, Tuple[str, int]]:
+    def recvfrom(self, buffer_size: int) -> tuple[bytes, tuple[str, int]]:
         """Get the latest response bytes"""
         if self._blocking and self._first_response_query:
             self._first_response_query = False
@@ -180,10 +179,11 @@ class MockSocket:
 if __name__ == "__main__":
     import coloredlogs
     import logging
+    from typing import cast
 
     coloredlogs.install(level=logging.INFO)
 
-    udp_sender = packet.UdpSender(ip="127.0.0.1", comm=MockSocket())
+    udp_sender = packet.UdpSender(ip="127.0.0.1", comm=cast(socket.socket, MockSocket()))
     packet_comm = packet.PacketComm(udp_sender, verbose=True)
     set_color = light_messages.SetColor(
         color=packet.Hsbk(

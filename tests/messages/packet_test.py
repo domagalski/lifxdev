@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import logging
+import socket
 import unittest
+from typing import cast
 
 import coloredlogs
 
@@ -98,7 +100,10 @@ class PacketTest(unittest.TestCase):
         hsbk = packet.Hsbk(hue=21845, saturation=65535, brightness=65535, kelvin=3500)
         green = light_messages.SetColor(color=hsbk, duration=1024)
         comm = packet.UdpSender(
-            ip="127.0.0.1", port=56700, comm=test_utils.MockSocket(), nonblock_delay=0
+            ip="127.0.0.1",
+            port=56700,
+            comm=cast(socket.socket, test_utils.MockSocket()),
+            nonblock_delay=0,
         )
         packet_comm = packet.PacketComm(comm)
 
@@ -167,14 +172,17 @@ class PacketTest(unittest.TestCase):
         self.assertEqual(payload_bytes_array, lifx_ref)
 
         # Test the full encode-send-receive-decode chain
-        responses = packet_comm.send_recv(
-            payload=green,
-            mac_addr="00:00:00:00:00:00",
-            res_required=True,
-            ack_required=False,
-            sequence=123,
-            source=1234,
-            verbose=True,
+        responses = cast(
+            list[packet.LifxResponse],
+            packet_comm.send_recv(
+                payload=green,
+                mac_addr="00:00:00:00:00:00",
+                res_required=True,
+                ack_required=False,
+                sequence=123,
+                source=1234,
+                verbose=True,
+            ),
         )
 
         self.assertEqual(len(responses), 1)

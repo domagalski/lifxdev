@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import socket
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
 from lifxdev.messages import packet
 from lifxdev.messages import device_messages
@@ -14,13 +14,13 @@ class LifxDevice:
         self,
         ip: str,
         *,
-        mac_addr: Optional[str] = None,
+        mac_addr: str | None = None,
         port: int = packet.LIFX_PORT,
         buffer_size: int = packet.BUFFER_SIZE,
-        timeout: Optional[float] = packet.TIMEOUT,
+        timeout: float | None = packet.TIMEOUT,
         nonblock_delay: float = packet.NONBOCK_DELAY,
         verbose: bool = False,
-        comm_init: Optional[Callable] = None,
+        comm_init: Callable | None = None,
     ):
         """Create a LIFX device from an IP address
 
@@ -44,6 +44,7 @@ class LifxDevice:
         udp_sender = packet.UdpSender(
             mac_addr=mac_addr,
             ip=ip,
+            port=port,
             comm=comm,
             buffer_size=buffer_size,
             nonblock_delay=nonblock_delay,
@@ -55,7 +56,7 @@ class LifxDevice:
     def ip(self) -> str:
         return self._comm.ip
 
-    def _set_timeout(self, timeout: Optional[float]) -> None:
+    def _set_timeout(self, timeout: float | None) -> None:
         """Set the timeout of the UDP socket"""
         self._comm.set_timeout(timeout)
 
@@ -65,7 +66,7 @@ class LifxDevice:
         *,
         ack_required: bool = False,
         verbose: bool = False,
-    ) -> Optional[packet.LifxResponse]:
+    ) -> packet.LifxResponse | None:
         """Send a message to a device.
 
         This can be used to send any LIFX message to the device. Functions
@@ -87,13 +88,13 @@ class LifxDevice:
         *,
         res_required: bool = False,
         ack_required: bool = False,
-        ip: Optional[str] = None,
-        port: Optional[int] = None,
-        mac_addr: Optional[str] = None,
-        comm: Optional[socket.socket] = None,
+        ip: str | None = None,
+        port: int | None = None,
+        mac_addr: str | None = None,
+        comm: socket.socket | None = None,
         retry_recv: bool = False,
         verbose: bool = False,
-    ) -> Optional[List[packet.LifxResponse]]:
+    ) -> list[packet.LifxResponse] | None:
         """Send a message to a device or broadcast address.
 
         This can be used to send any LIFX message to the device. Functions
@@ -131,7 +132,7 @@ class LifxDevice:
         assert response is not None
         return response.pop().payload["level"]
 
-    def set_power(self, state: bool, *, ack_required=False) -> Optional[packet.LifxResponse]:
+    def set_power(self, state: bool, *, ack_required=False) -> packet.LifxResponse | None:
         """Set power state on the device"""
         power = device_messages.SetPower(level=state)
         response = self.send_recv(power, ack_required=ack_required)

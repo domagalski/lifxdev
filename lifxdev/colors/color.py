@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
+import dataclasses
 import random
-from typing import NamedTuple, Union
+from typing import Union
 
 import numpy as np
 from matplotlib import colormaps
@@ -12,7 +13,8 @@ from lifxdev.messages import packet
 KELVIN = 5500
 
 
-class Hsbk(NamedTuple):
+@dataclasses.dataclass
+class Hsbk:
     """Human-readable HSBK tuple"""
 
     hue: float
@@ -45,7 +47,7 @@ class Hsbk(NamedTuple):
     def max_brightness(self, brightness: float) -> "Hsbk":
         """Force the brightness to be at most a specific value"""
         if self.brightness > brightness:
-            return self._replace(brightness=brightness)
+            return dataclasses.replace(self, brightness=brightness)
         return self
 
     def to_packet(self) -> packet.Hsbk:
@@ -80,9 +82,7 @@ def get_colormap(
     Returns:
         A list of HSBK values for the colormap.
     """
-    if isinstance(cmap, str):
-        cmap = colormaps.get_cmap(cmap)
-    assert isinstance(cmap, colors.Colormap)
+    mpl_cmap = colormaps.get_cmap(cmap) if isinstance(cmap, str) else cmap
 
     if length < 1:
         raise ValueError("length must be at least one.")
@@ -95,7 +95,7 @@ def get_colormap(
         selectors = [(idx + offset) % 1.0 for idx in selectors]
         random.shuffle(selectors)
 
-    rgb_array = np.array(colors.to_rgba_array(cmap(selectors))).transpose()[:3].transpose()
+    rgb_array = np.array(colors.to_rgba_array(mpl_cmap(selectors))).transpose()[:3].transpose()
     hsv_array = colors.rgb_to_hsv(rgb_array)
     hsbk_list = [Hsbk.from_tuple((360 * hsv[0],) + tuple(hsv[1:]) + (kelvin,)) for hsv in hsv_array]
     return hsbk_list

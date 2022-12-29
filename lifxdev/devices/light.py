@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
-from typing import Optional, Tuple, Union
-
 from lifxdev.colors import color
 from lifxdev.devices import device
 from lifxdev.messages import light_messages
 from lifxdev.messages import packet
 
-COLOR_T = Union[color.Hsbk, Tuple[float, float, float, int]]
+COLOR_T = color.Hsbk | tuple[float, float, float, int]
 
 
 class LifxLight(device.LifxDevice):
@@ -23,7 +21,7 @@ class LifxLight(device.LifxDevice):
         return self._label
 
     @label.setter
-    def label(self, value: str):
+    def label(self, _: str):
         raise RuntimeError("Label can only be set on init.")
 
     @property
@@ -64,7 +62,7 @@ class LifxLight(device.LifxDevice):
         *,
         duration: float = 0.0,
         ack_required: bool = False,
-    ) -> Optional[packet.LifxResponse]:
+    ) -> packet.LifxResponse | None:
         """Set the color of the light.
 
         Args:
@@ -88,7 +86,7 @@ class LifxLight(device.LifxDevice):
         *,
         duration: float = 0.0,
         ack_required: bool = False,
-    ) -> Optional[packet.LifxResponse]:
+    ) -> packet.LifxResponse | None:
         """Set power state on the bulb.
 
         Args:
@@ -115,7 +113,7 @@ class LifxInfraredLight(LifxLight):
 
     def set_infrared(
         self, brightness: float, *, ack_required: bool = False
-    ) -> Optional[packet.LifxResponse]:
+    ) -> packet.LifxResponse | None:
         """Set the infrared level on the bulb.
 
         Args:

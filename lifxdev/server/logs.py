@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 import coloredlogs
 

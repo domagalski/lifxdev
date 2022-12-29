@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import collections
+import dataclasses
 import enum
 import logging
 import os
@@ -9,13 +10,13 @@ import socket
 import struct
 import sys
 import time
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Type, Union
+from collections.abc import Callable
+from typing import cast, Any, Union
 
 BUFFER_SIZE = 4096
 LIFX_PORT = 56700
 NONBOCK_DELAY = 0.1
 TIMEOUT = 1
-REGISTER_T = List[Tuple[str, Optional[int], str]]
 
 
 class NoResponsesError(Exception):
@@ -53,11 +54,11 @@ class LifxStruct:
         2: (int) number of items of the type
     """
 
-    registers: List[Tuple[str, Union[LifxType, "LifxStruct"], int]] = []
+    registers: list[tuple[str, Union[LifxType, "LifxStruct"], int]] = []
 
     def __init__(self, **kwargs):
         # Set to tuples because they're immutable. _names and _sizes should not be changed.
-        self._names: Tuple[str, ...] = tuple([rr[0].lower() for rr in self.registers])
+        self._names: tuple[str, ...] = tuple([rr[0].lower() for rr in self.registers])
         for kw in kwargs:
             if kw not in self._names:
                 name = type(self).__name__
@@ -158,17 +159,18 @@ class LifxStruct:
         return self._types[name]
 
     @staticmethod
-    def get_nbits_and_signed(register_type: LifxType) -> Tuple[int, bool]:
+    def get_nbits_and_signed(register_type: Union[LifxType, "LifxStruct"]) -> tuple[int, bool]:
         """Get the number of bits used to represent positive numbers for a type"""
         n_bits = register_type.value[0]
         # struct identifiers are lowercase for signed types
-        signed = register_type.value[1] == register_type.value[1].lower()
+        rtype_value: str | None = register_type.value[1]
+        signed = rtype_value == rtype_value.lower() if rtype_value else False
         # if signed int, one of the bits is for determining the signed.
         if signed:
             n_bits -= 1
         return n_bits, signed
 
-    def get_max(self, name: str) -> int:
+    def get_max(self, name: str) -> float:
         """Get the maximum value a member of an integer register can hold"""
         register_type = self.get_type(name)
         if register_type.value[1] is None:
@@ -181,7 +183,7 @@ class LifxStruct:
         n_bits, _ = self.get_nbits_and_signed(register_type)
         return (1 << n_bits) - 1
 
-    def get_min(self, name: str) -> int:
+    def get_min(self, name: str) -> float:
         """Get the minimum value a member of an integer register can hold"""
         register_type = self.get_type(name)
         if register_type.value[1] is None:
@@ -198,7 +200,7 @@ class LifxStruct:
             return 0
 
     @property
-    def value(self) -> Tuple[int, None]:
+    def value(self) -> tuple[int, None]:
         """Mimic the value attribute of the LifxType enum"""
         return (self.get_size_bits(), None)
 
@@ -250,7 +252,7 @@ class LifxStruct:
     def __setitem__(self, name: str, value: Any) -> None:
         self.set_value(name, value)
 
-    def set_value(self, name: str, value: Any, idx: Optional[int] = None) -> None:
+    def set_value(self, name: str, value: Any, idx: int | None = None) -> None:
         """Set a register value by name.
 
         Args:
@@ -340,6 +342,9 @@ class LifxStruct:
         return message_bytes
 
 
+REGISTER_T = list[tuple[str, LifxType | LifxStruct, int]]
+
+
 # Header description: https://lan.developer.lifx.com/docs/header-description
 
 
@@ -410,7 +415,7 @@ class FrameAddress(LifxStruct):
         ("sequence", LifxType.u8, 1),
     ]
 
-    def set_value(self, name: str, value: int) -> None:
+    def set_value(self, name: str, value: int | str | list[int]) -> None:
         """LIFX Frame Address specification requires certain fields to be constant.
 
         This also allows for the proper parsing of mac addresses.
@@ -425,7 +430,9 @@ class FrameAddress(LifxStruct):
 
     def _fmt(self, name: str) -> str:
         """Create a format string for a register name"""
-        return "<" + self.get_type(name).value[1] * self.get_array_size(name)
+        type_value = self.get_type(name).value[1]
+        assert type_value
+        return "<" + type_value * self.get_array_size(name)
 
     def to_bytes(self) -> bytes:
         """Override defaults because of sub-byte packing"""
@@ -442,7 +449,7 @@ class FrameAddress(LifxStruct):
         return target_bytes + res_1_bytes + bit_field_bytes + sequence_bytes
 
     @classmethod
-    def from_bytes(cls, message_bytes: bytes) -> "Frame":
+    def from_bytes(cls, message_bytes: bytes) -> "FrameAddress":
         """Override defaults because of sub-byte packing"""
         frame_address = cls()
         get_len = frame_address.get_nbytes_per_name
@@ -486,7 +493,7 @@ class Hsbk(LifxStruct):
         ("kelvin", LifxType.u16, 1),
     ]
 
-    def set_value(self, name: str, value: Union[int, List[int]]):
+    def set_value(self, name: str, value: int | list[int]):
         """Kelvin must be between 2500 and 9000."""
         if isinstance(value, list):
             if len(value) > 1:
@@ -513,8 +520,8 @@ class LifxMessage(LifxStruct):
     """LIFX struct used as a message type payload."""
 
     # integer identifier of for the protocol header of LIFX packets.
-    name: Optional[str] = None
-    type: Optional[int] = None
+    name: str
+    type: str
 
     def __repr__(self) -> str:
         super_str = super().__str__()
@@ -530,9 +537,14 @@ class LifxMessage(LifxStruct):
             msg_str = f"{msg_str}\n{super_str}"
         return msg_str
 
+    @classmethod
+    def from_bytes(cls, message_bytes: bytes) -> "LifxMessage":
+        return cast(cls, super().from_bytes(message_bytes))
 
-class LifxResponse(NamedTuple):
-    addr: Tuple[str, int]
+
+@dataclasses.dataclass
+class LifxResponse:
+    addr: tuple[str, int]
     frame: Frame
     frame_address: FrameAddress
     protocol_header: ProtocolHeader
@@ -559,7 +571,7 @@ class LifxResponse(NamedTuple):
 
 # Used for parsing responses from LIFX bulbs
 # This maps the protocol header type to a LifxMessage class to generate using bytes
-_MESSAGE_TYPES: Dict[int, Type] = {}
+_MESSAGE_TYPES: dict[int, type[LifxMessage]] = {}
 
 
 def set_message_type(message_type: int) -> Callable:
@@ -569,7 +581,7 @@ def set_message_type(message_type: int) -> Callable:
         message_type: (int) LIFX message type for the protocol header
     """
 
-    def _msg_type_decorator(cls: Type) -> Type:
+    def _msg_type_decorator(cls) -> type:
         class _LifxMessage(cls):
             pass
 
@@ -597,7 +609,8 @@ class Acknowledgement(LifxMessage):
 #
 
 
-class UdpSender(NamedTuple):
+@dataclasses.dataclass
+class UdpSender:
     """Send messages to a single IP/port"""
 
     # IP address of the LIFX device.
@@ -610,7 +623,7 @@ class UdpSender(NamedTuple):
     port: int = LIFX_PORT
 
     # Mac address of the LIFX device
-    mac_addr: Optional[str] = None
+    mac_addr: str | None = None
 
     # Buffer size for receiving UDP messages
     buffer_size: int = BUFFER_SIZE
@@ -640,11 +653,11 @@ class PacketComm:
     @staticmethod
     def decode_bytes(
         message_bytes: bytes,
-        message_addr: Tuple[str, int],
-        nominal_source: Optional[int] = None,
-        nominal_sequence: Optional[int] = None,
+        message_addr: tuple[str, int],
+        nominal_source: int | None = None,
+        nominal_sequence: int | None = None,
     ) -> LifxResponse:
-        def _get_nbytes(cls: Type) -> int:
+        def _get_nbytes(cls: type[LifxStruct]) -> int:
             n_bits = 0
             for _, rtype, rlen in cls.registers:
                 n_bits += rtype.value[0] * rlen
@@ -679,7 +692,9 @@ class PacketComm:
         # Decode the payload
         offset += chunk_len
         chunk_len = _get_nbytes(ProtocolHeader)
-        protocol_header = ProtocolHeader.from_bytes(message_bytes[offset : offset + chunk_len])
+        protocol_header = cast(
+            ProtocolHeader, ProtocolHeader.from_bytes(message_bytes[offset : offset + chunk_len])
+        )
 
         offset += chunk_len
         payload_klass = _MESSAGE_TYPES[protocol_header["type"]]
@@ -698,12 +713,12 @@ class PacketComm:
     def get_bytes_and_source(
         *,
         payload: LifxMessage,
-        mac_addr: Optional[Union[str, int]] = None,
+        mac_addr: str | int | None = None,
         res_required: bool = False,
         ack_required: bool = False,
         sequence: int = 0,
-        source: Optional[int] = None,
-    ) -> Tuple[bytes, int]:
+        source: int | None = None,
+    ) -> tuple[bytes, int]:
         """Generate LIFX packet bytes.
 
         Args:
@@ -750,14 +765,14 @@ class PacketComm:
     def send_recv(
         self,
         *,
-        ip: Optional[str] = None,
-        port: Optional[int] = None,
-        mac_addr: Optional[str] = None,
-        comm: Optional[socket.socket] = None,
+        ip: str | None = None,
+        port: int | None = None,
+        mac_addr: str | None = None,
+        comm: socket.socket | None = None,
         retry_recv: bool = False,
         verbose: bool = False,
         **kwargs,
-    ) -> Optional[List[LifxResponse]]:
+    ) -> list[LifxResponse] | None:
         """Send a packet to a LIFX device or broadcast address and get responses
 
         Args:
@@ -821,7 +836,7 @@ class PacketComm:
                 )
             return responses
 
-    def set_timeout(self, timeout: Optional[float]) -> None:
+    def set_timeout(self, timeout: float | None) -> None:
         """Set the timeout of the UDP socket"""
         self._comm.comm.settimeout(timeout)
 
@@ -860,9 +875,9 @@ def _mac_str_to_int(mac_str: str) -> int:
     return int(hex_str, 16)
 
 
-def mac_str_to_int_list(mac_str: str) -> List[int]:
+def mac_str_to_int_list(mac_str: str) -> list[int]:
     mac_int = _mac_str_to_int(mac_str)
-    int_list: List[int] = []
+    int_list: list[int] = []
     for _ in range(8):
         int_list.append(mac_int % (1 << 8))
         mac_int = mac_int >> 8

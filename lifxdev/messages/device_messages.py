@@ -5,8 +5,6 @@
 https://lan.developer.lifx.com/docs/device-messages
 """
 
-from typing import Union
-
 from lifxdev.messages import packet
 
 
@@ -95,7 +93,7 @@ class SetPower(packet.LifxMessage):
         ("duration", packet.LifxType.u32, 1),
     ]
 
-    def set_value(self, name: str, value: Union[int, bool]) -> None:
+    def set_value(self, name: str, value: int | bool) -> None:
         """SetPower level can be either 0 or 65535"""
         if name.lower() == "level":
             if isinstance(value, bool):

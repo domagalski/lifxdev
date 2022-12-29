@@ -6,7 +6,8 @@ import pathlib
 import unittest
 import threading
 import time
-from typing import Callable, Union
+from collections.abc import Callable
+from typing import cast
 
 import portpicker
 
@@ -42,7 +43,7 @@ class ServerTest(unittest.TestCase):
         self,
         cmd_str: str,
         call_func: Callable,
-    ) -> Union[str, server.ServerResponse]:
+    ) -> str | server.ServerResponse:
 
         server = threading.Thread(target=self.lifx_server.recv_and_run)
         server.start()
@@ -73,6 +74,8 @@ class ServerTest(unittest.TestCase):
             "power device-a --machine",
             self.lifx_client.send_recv,
         )
+        self.assertIsInstance(response, server.ServerResponse)
+        response = cast(server.ServerResponse, response)
         self.assertIsNone(response.error)
         self.assertEqual(response.response, "1")
 
@@ -81,6 +84,8 @@ class ServerTest(unittest.TestCase):
             "power device-a --machine",
             self.lifx_client.send_recv,
         )
+        response = cast(server.ServerResponse, response)
+        self.assertIsNone(response.error)
         self.assertIsNone(response.error)
         self.assertEqual(response.response, "0")
 
@@ -104,43 +109,59 @@ class ServerTest(unittest.TestCase):
         )
 
     def test_help_commands(self):
-        self.assertIn("\n", self.run_cmd_get_response("help", self.lifx_client))
-        self.assertIn("\n", self.run_cmd_get_response("devices", self.lifx_client))
-        self.assertIn("\n", self.run_cmd_get_response("groups", self.lifx_client))
-        self.assertIn("\n", self.run_cmd_get_response("cmap", self.lifx_client))
-        self.assertIn("\n", self.run_cmd_get_response("list", self.lifx_client))
+        for cmd in ["help", "devices", "groups", "cmap", "list"]:
+            response = self.run_cmd_get_response(cmd, self.lifx_client)
+            self.assertIsInstance(response, str)
+            response = cast(str, response)
+            self.assertIn("\n", response)
 
         # Check machine-readable device/group information
-        self.assertIn(
-            "device-a",
-            json.loads(self.run_cmd_get_response("devices --to-json", self.lifx_client)),
-        )
-        self.assertIn(
-            "group-a",
-            json.loads(self.run_cmd_get_response("groups --to-json", self.lifx_client))["groups"],
-        )
+        for cmd, expected, key in [
+            ("devices --to-json", "device-a", None),
+            ("groups --to-json", "group-a", "groups"),
+        ]:
+            response = self.run_cmd_get_response(cmd, self.lifx_client)
+            self.assertIsInstance(response, str)
+            response = cast(str, response)
+            if key:
+                self.assertIn(expected, json.loads(response)[key])
+            else:
+                self.assertIn(expected, json.loads(response))
 
         # Check specific devices
-        self.assertIn(
-            "Type: LifxLight", self.run_cmd_get_response("devices device-a", self.lifx_client)
-        )
-        device_attr = json.loads(
-            self.run_cmd_get_response("devices device-a --to-json", self.lifx_client)
-        )
-        self.assertEqual("LifxLight", device_attr["device-a"]["type"])
+        for cmd, expected in [
+            ("devices device-a", "Type: LifxLight"),
+            ("groups group-b", "Device Group group-b"),
+        ]:
+            response = self.run_cmd_get_response(cmd, self.lifx_client)
+            self.assertIsInstance(response, str)
+            response = cast(str, response)
+            self.assertIn(expected, response)
 
-        device_attr = json.loads(
-            self.run_cmd_get_response("groups group-b --to-json", self.lifx_client)
-        )
-        self.assertEqual("LifxLight", device_attr["device-a"]["type"])
+            response = self.run_cmd_get_response(f"{cmd} --to-json", self.lifx_client)
+            self.assertIsInstance(response, str)
+            response = cast(str, response)
+            device_attr = json.loads(response)
+            self.assertEqual("LifxLight", device_attr["device-a"]["type"])
 
     def test_reload_config(self):
-        self.assertIsNone(self.run_cmd_get_response("reload", self.lifx_client.send_recv).error)
         self.assertIsNone(
-            self.run_cmd_get_response("reload device", self.lifx_client.send_recv).error
+            cast(
+                server.ServerResponse,
+                self.run_cmd_get_response("reload", self.lifx_client.send_recv),
+            ).error
         )
         self.assertIsNone(
-            self.run_cmd_get_response("reload process", self.lifx_client.send_recv).error
+            cast(
+                server.ServerResponse,
+                self.run_cmd_get_response("reload device", self.lifx_client.send_recv),
+            ).error
+        )
+        self.assertIsNone(
+            cast(
+                server.ServerResponse,
+                self.run_cmd_get_response("reload process", self.lifx_client.send_recv),
+            ).error
         )
 
     def test_set_color(self):
@@ -153,7 +174,6 @@ class ServerTest(unittest.TestCase):
             "color all",
             self.lifx_client,
         )
-        # self.assertTrue(self.run_cmd_get_response("color device-a --machine", self.lifx_client))
 
     def test_set_colormap(self):
         logging.info(self.run_cmd_get_response("cmap -h", self.lifx_client))
@@ -169,15 +189,23 @@ class ServerTest(unittest.TestCase):
     def test_set_power(self):
         self.assertTrue(self.run_cmd_get_response("power -h", self.lifx_client))
         self.assertTrue(self.run_cmd_get_response("power all on", self.lifx_client))
-        response = self.run_cmd_get_response("power device-a", self.lifx_client.send_recv)
-        self.assertIsNone(response.error)
-        self.assertTrue(response.response.endswith(" on"))
-
-        response = self.run_cmd_get_response(
-            "power device-a --machine",
-            self.lifx_client.send_recv,
+        response = cast(
+            server.ServerResponse,
+            self.run_cmd_get_response("power device-a", self.lifx_client.send_recv),
         )
         self.assertIsNone(response.error)
+        assert response.response  # for pyright
+        self.assertTrue(response.response.endswith(" on"))
+
+        response = cast(
+            server.ServerResponse,
+            self.run_cmd_get_response(
+                "power device-a --machine",
+                self.lifx_client.send_recv,
+            ),
+        )
+        self.assertIsNone(response.error)
+        assert response.response  # for pyright
         self.assertEqual(response.response, "1")
 
         self.assertRaises(
@@ -194,11 +222,15 @@ class ServerTest(unittest.TestCase):
         )
 
         logging.info(self.run_cmd_get_response("power group-a off", self.lifx_client))
-        response = self.run_cmd_get_response(
-            "power device-a --machine",
-            self.lifx_client.send_recv,
+        response = cast(
+            server.ServerResponse,
+            self.run_cmd_get_response(
+                "power device-a --machine",
+                self.lifx_client.send_recv,
+            ),
         )
         self.assertIsNone(response.error)
+        assert response.response  # for pyright
         self.assertEqual(response.response, "0")
 
         self.assertRaises(
@@ -216,7 +248,13 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(self.run_cmd_get_response("start ongoing", self.lifx_client))
         self.assertIn(
             "Running processes:",
-            self.run_cmd_get_response("list", self.lifx_client.send_recv).response,
+            cast(
+                str,
+                cast(
+                    server.ServerResponse,
+                    self.run_cmd_get_response("list", self.lifx_client.send_recv),
+                ).response,
+            ),
         )
         self.assertTrue(self.run_cmd_get_response("stop ongoing", self.lifx_client))
 
@@ -233,36 +271,49 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(self.run_cmd_get_response("restart ongoing", self.lifx_client))
         self.assertIn(
             "No processes with errors",
-            self.run_cmd_get_response("check", self.lifx_client.send_recv).response,
+            cast(
+                str,
+                cast(
+                    server.ServerResponse,
+                    self.run_cmd_get_response("check", self.lifx_client.send_recv),
+                ).response,
+            ),
         )
         self.assertEqual(
-            1, int(self.run_cmd_get_response("status ongoing --machine", self.lifx_client))
-        )
-        self.assertIn("is running", self.run_cmd_get_response("status ongoing", self.lifx_client))
-        self.assertTrue(self.run_cmd_get_response("stop ongoing", self.lifx_client))
-        self.assertEqual(
-            0, int(self.run_cmd_get_response("status ongoing --machine", self.lifx_client))
+            1,
+            int(cast(str, self.run_cmd_get_response("status ongoing --machine", self.lifx_client))),
         )
         self.assertIn(
-            "is not running", self.run_cmd_get_response("status ongoing", self.lifx_client)
+            "is running", cast(str, self.run_cmd_get_response("status ongoing", self.lifx_client))
+        )
+        self.assertTrue(self.run_cmd_get_response("stop ongoing", self.lifx_client))
+        self.assertEqual(
+            0,
+            int(cast(str, self.run_cmd_get_response("status ongoing --machine", self.lifx_client))),
+        )
+        self.assertIn(
+            "is not running",
+            cast(str, self.run_cmd_get_response("status ongoing", self.lifx_client)),
         )
 
         # check machine-readable list
         self.assertTrue(self.run_cmd_get_response("start oneshot", self.lifx_client))
-        running = json.loads(self.run_cmd_get_response("list --to-json", self.lifx_client))[
-            "running"
-        ]
+        running = json.loads(
+            cast(str, self.run_cmd_get_response("list --to-json", self.lifx_client))
+        )["running"]
         self.assertIn("oneshot", running)
 
         # Handle long-running oneshot commands
         self.assertTrue(self.run_cmd_get_response("start really-long-oneshot", self.lifx_client))
-        running = json.loads(self.run_cmd_get_response("list --to-json", self.lifx_client))[
-            "running"
-        ]
+        running = json.loads(
+            cast(str, self.run_cmd_get_response("list --to-json", self.lifx_client))
+        )["running"]
         self.assertIn("really-long-oneshot", running)
-        self.assertFalse(json.loads(self.run_cmd_get_response("check --to-json", self.lifx_client)))
+        self.assertFalse(
+            json.loads(cast(str, self.run_cmd_get_response("check --to-json", self.lifx_client)))
+        )
         failed_processes = json.loads(
-            self.run_cmd_get_response("check --to-json --kill-oneshot", self.lifx_client)
+            cast(str, self.run_cmd_get_response("check --to-json --kill-oneshot", self.lifx_client))
         )
         self.assertIn("really-long-oneshot", failed_processes)
 
@@ -274,7 +325,9 @@ class ServerTest(unittest.TestCase):
             detected_failure = False
             start = time.time()
             while time.time() < start + timeout:
-                if "failure returncode: " in self.run_cmd_get_response(cmd, self.lifx_client):
+                if "failure returncode: " in cast(
+                    str, self.run_cmd_get_response(cmd, self.lifx_client)
+                ):
                     detected_failure = True
                     break
                 else:
