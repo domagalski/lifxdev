@@ -344,7 +344,7 @@ class LifxStruct:
         return message_bytes
 
 
-REGISTER_T = list[tuple[str, LifxType | LifxStruct, int]]
+REGISTER_T = list[tuple[str, LifxType, int]]
 
 
 # Header description: https://lan.developer.lifx.com/docs/header-description
