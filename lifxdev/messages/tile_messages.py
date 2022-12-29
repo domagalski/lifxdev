@@ -5,6 +5,8 @@
 https://lan.developer.lifx.com/docs/tile-messages
 """
 
+from __future__ import annotations
+
 from lifxdev.messages import packet
 
 

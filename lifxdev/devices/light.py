@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from __future__ import annotations
+
 from lifxdev.colors import color
 from lifxdev.devices import device
 from lifxdev.messages import light_messages

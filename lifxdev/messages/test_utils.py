@@ -2,6 +2,8 @@
 
 """Create a mock socket that can be used for testing/simulating"""
 
+from __future__ import annotations
+
 import enum
 import socket
 

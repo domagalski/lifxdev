@@ -5,6 +5,8 @@
 https://lan.developer.lifx.com/docs/light-messages
 """
 
+from __future__ import annotations
+
 from lifxdev.messages import packet
 
 

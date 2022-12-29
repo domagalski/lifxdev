@@ -5,6 +5,8 @@
 https://lan.developer.lifx.com/docs/firmware-effects
 """
 
+from __future__ import annotations
+
 import enum
 from typing import Any
 
