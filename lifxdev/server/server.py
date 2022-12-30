@@ -252,6 +252,7 @@ class LifxServer:
             self._connections.pop(conn.fileno(), None)
             self._selector.unregister(conn)
             conn.close()
+            return
 
         cmd_label = cmd_args.pop(0)
         cmd = self._commands.get(cmd_label)
