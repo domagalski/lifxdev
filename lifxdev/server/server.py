@@ -247,9 +247,13 @@ class LifxServer:
 
     def _recv_and_run(self, conn: socket.socket) -> None:
         """Receive a command over TCP, run it, and send back the result string."""
-        cmd_args = shlex.split(conn.recv(BUFFER_SIZE).decode())
-        cmd_label = cmd_args.pop(0)
+        cmd_args = shlex.split(conn.recv(BUFFER_SIZE).decode().strip())
+        if not cmd_args:
+            self._connections.pop(conn.fileno(), None)
+            self._selector.unregister(conn)
+            conn.close()
 
+        cmd_label = cmd_args.pop(0)
         cmd = self._commands.get(cmd_label)
         if not cmd:
             self._send_response(conn, ServerResponse(error=UnknownServerCommand(f"{cmd_label!r}")))
