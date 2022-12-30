@@ -9,10 +9,10 @@ import json
 import logging
 import pathlib
 import pickle
-import random
+import selectors
 import shlex
 import socket
-import threading
+import time
 from collections.abc import Callable, Iterable
 from typing import Any
 
@@ -27,7 +27,8 @@ from lifxdev.server import process
 
 BUFFER_SIZE = 512
 SERVER_PORT = 16384
-SERVER_TIMEOUT = 60.0
+POLL_TIMEOUT = 0.05
+MAX_TIME_IN_QUEUE = 10
 DEVICE_CONFIG = device_manager.CONFIG_PATH
 PROCESS_CONFIG = process.CONFIG_PATH
 
@@ -138,87 +139,10 @@ class ServerResponse:
     error: Exception | None = None
 
 
-class _ThreadRunner:
-    """Helper class to _ThreadPool to run threads"""
-
-    def __init__(self, func: Callable, lock: threading.Lock):
-        """Run a thread, managed by ThreadPool
-
-        Args:
-            func: A function that takes no arguments to run.
-            lock: ThreadPool's lock to ensure only one thread runs at a time.
-        """
-        self._complete_lock = threading.Lock()
-        self._complete = False
-
-        self._lock = lock
-        self._func = func
-        self._thread = threading.Thread(target=self._run)
-        self._thread.start()
-
-    @property
-    def complete(self) -> bool:
-        """Check if the thread is complete"""
-        with self._complete_lock:
-            return self._complete
-
-    @complete.setter
-    def complete(self, state: bool) -> None:
-        """Set whether the thread is complete"""
-        with self._complete_lock:
-            self._complete = state
-
-    def _run(self) -> None:
-        """Run a thread and mark it as complete"""
-        with self._lock:
-            self._func()
-        self.complete = True
-
-    def join(self) -> None:
-        """Join the thread"""
-        self._thread.join()
-
-
-class _ThreadPool:
-    """Create a basic thread pool for the LIFX server
-
-    While the LIFX server supports only running one thread at a time,
-    the thread pool helps queue up threads if incoming connections come
-    in faster than the LIFX server can run a thread. After the maximum
-    number of threads are reached and not all threads are complete,
-    the thread pool will drop any incoming thread requests.
-
-    This might be overkill and not necessary, but using it anyways.
-    """
-
-    def __init__(self, num_threads: int):
-        """Create a thread pool and set the maximum number of threads"""
-        self._lock = threading.Lock()
-        self._num_threads = num_threads
-        self._threads: dict[int, _ThreadRunner] = {}
-
-    def add(self, func: Callable):
-        """Add a function to the thread pool.
-
-        The function takes no args. If the thread pool is full, the
-        function will not be run.
-        """
-        uid = random.randint(0, (1 << 32) - 1)
-        while uid in self._threads:
-            uid = random.randint(0, (1 << 32) - 1)
-
-        if len(self._threads) == self._num_threads:
-            for uid in list(self._threads.keys()):
-                if self._threads[uid].complete:
-                    self._threads.pop(uid).join()
-
-        if len(self._threads) != self._num_threads:
-            self._threads[uid] = _ThreadRunner(func, self._lock)
-
-    def close(self):
-        """Join all existing threads"""
-        for uid in list(self._threads.keys()):
-            self._threads.pop(uid).join()
+@dataclasses.dataclass
+class _Connection:
+    conn: socket.socket
+    init_time: float
 
 
 class LifxServer:
@@ -234,7 +158,6 @@ class LifxServer:
         *,
         device_config_path: str | pathlib.Path = DEVICE_CONFIG,
         process_config_path: str | pathlib.Path = PROCESS_CONFIG,
-        timeout: float | None = SERVER_TIMEOUT,
         verbose: bool = True,
         comm_init: Callable | None = None,
     ):
@@ -261,17 +184,18 @@ class LifxServer:
         )
 
         self._process_manager = process.ProcessManager(self._process_config_path)
-
-        # TODO add option to configure threadpool size
-        self._threadpool = _ThreadPool(32)
+        # Since self._recv_and_run blocks until server commands have completed,
+        # this dict should only ever have one item at most.
+        self._connections: dict[int, _Connection] = {}
+        self._selector = selectors.DefaultSelector()
 
         # Setup the TCP listener
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._socket.settimeout(timeout)
+        self._socket.setblocking(False)
         self._socket.bind(("0.0.0.0", server_port))
         self._socket.listen(5)
-        self._last_wait_timeout = False
+        self._selector.register(self._socket, selectors.EVENT_READ)
         logging.info(f"Listening on port: 0.0.0.0:{server_port}")
 
         # Set the command registry
@@ -280,7 +204,6 @@ class LifxServer:
             self._commands[cmd.label] = cmd
 
     def close(self) -> None:
-        self._threadpool.close()
         self._socket.close()
 
     def _get_device_or_group(self, label: str) -> Any | None:
@@ -298,20 +221,29 @@ class LifxServer:
         else:
             raise InvalidDeviceError(f"{label!r}")
 
-    def recv_and_run(self) -> None:
+    def clear_stale_connections(self, now_time: float) -> None:
+        conn_fds = frozenset(self._connections.keys())
+        for fd in conn_fds:
+            if now_time - self._connections[fd].init_time > MAX_TIME_IN_QUEUE:
+                self._connections.pop(fd)
+
+    def recv_and_run(self, now_time: float) -> None:
         """Receive an incoming connection and run the command from it"""
         log_func = logging.info if self._verbose else logging.debug
-        if not self._last_wait_timeout:
-            log_func("Waiting for command...")
-        try:
-            conn, (ip, port) = self._socket.accept()
-            log_func(f"Received client at address: {ip}:{port}")
-            self._last_wait_timeout = False
-        except socket.timeout:
-            self._last_wait_timeout = True
+
+        if not (events := self._selector.select(POLL_TIMEOUT)):
             return
 
-        self._threadpool.add(lambda: self._recv_and_run(conn))
+        for key, _ in events:
+            if key.fd == self._socket.fileno():
+                conn, (ip, port) = self._socket.accept()
+                log_func(f"Received client at address: {ip}:{port}")
+                self._connections[conn.fileno()] = _Connection(conn=conn, init_time=now_time)
+                self._selector.register(conn, selectors.EVENT_READ)
+            elif key.fd in self._connections:
+                self._recv_and_run(self._connections[key.fd].conn)
+            else:
+                raise RuntimeError(f"Got event for an unregistered socket: {key}")
 
     def _recv_and_run(self, conn: socket.socket) -> None:
         """Receive a command over TCP, run it, and send back the result string."""
@@ -341,13 +273,14 @@ class LifxServer:
 
         self._send_response(conn, response)
 
-    @staticmethod
-    def _send_response(conn: socket.socket, response: ServerResponse):
+    def _send_response(self, conn: socket.socket, response: ServerResponse):
         """Pickle a response and send it to the client"""
         resp_bytes = pickle.dumps(response)
         size = len(resp_bytes)
         resp_bytes = f"{size}:".encode() + resp_bytes
         conn.sendall(resp_bytes)
+        self._connections.pop(conn.fileno(), None)
+        self._selector.unregister(conn)
         conn.close()
 
     @_command("help", "Show every server command and description.")
@@ -795,23 +728,16 @@ class LifxServer:
     is_flag=True,
     help="Suppress INFO logs to DEBUG.",
 )
-@click.option(
-    "-t",
-    "--timeout",
-    default=SERVER_TIMEOUT,
-    type=float,
-    show_default=True,
-    help="Server timeout in seconds. <=0 disables the timeout",
-)
-def main(port: int, device_config: str, process_config, quiet: bool, timeout: float):
+def main(port: int, device_config: str, process_config, quiet: bool):
     logs.setup()
 
     lifx = LifxServer(
         port,
-        timeout=timeout if timeout > 0 else None,
         device_config_path=device_config,
         process_config_path=process_config,
         verbose=not quiet,
     )
     while True:
-        lifx.recv_and_run()
+        now_time = time.monotonic()
+        lifx.recv_and_run(now_time)
+        lifx.clear_stale_connections(now_time)

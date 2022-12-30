@@ -31,7 +31,6 @@ class ServerTest(unittest.TestCase):
             device_config_path=DEVICE_CONFIG,
             process_config_path=PROCESS_CONFIG,
             comm_init=lambda: self.mock_socket,
-            timeout=5,
         )
         self.lifx_client = client.LifxClient(port=self.port, timeout=5)
 
@@ -44,8 +43,14 @@ class ServerTest(unittest.TestCase):
         cmd_str: str,
         call_func: Callable,
     ) -> str | server.ServerResponse:
+        def _wait_for_events(stop_request: threading.Event) -> None:
+            while not stop_request.is_set():
+                now_time = time.monotonic()
+                self.lifx_server.recv_and_run(now_time)
+                self.lifx_server.clear_stale_connections(now_time)
 
-        server = threading.Thread(target=self.lifx_server.recv_and_run)
+        stop_request = threading.Event()
+        server = threading.Thread(target=_wait_for_events, args=(stop_request,))
         server.start()
 
         try:
@@ -54,6 +59,7 @@ class ServerTest(unittest.TestCase):
             logs.log_exception(e, logging.critical)
             raise
         finally:
+            stop_request.set()
             server.join()
         return response
 
@@ -296,14 +302,7 @@ class ServerTest(unittest.TestCase):
             cast(str, self.run_cmd_get_response("status ongoing", self.lifx_client)),
         )
 
-        # check machine-readable list
-        self.assertTrue(self.run_cmd_get_response("start oneshot", self.lifx_client))
-        running = json.loads(
-            cast(str, self.run_cmd_get_response("list --to-json", self.lifx_client))
-        )["running"]
-        self.assertIn("oneshot", running)
-
-        # Handle long-running oneshot commands
+        # Handle long-running oneshot commands and test the command list json.
         self.assertTrue(self.run_cmd_get_response("start really-long-oneshot", self.lifx_client))
         running = json.loads(
             cast(str, self.run_cmd_get_response("list --to-json", self.lifx_client))
