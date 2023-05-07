@@ -515,7 +515,6 @@ class LifxServer:
         duration: float,
         division: int,
     ) -> str:
-
         # Print colormaps and return
         if not colormap:
             msg_lines = ["\n\n    Matplotlib Colormaps:\n"]
@@ -733,8 +732,12 @@ class LifxServer:
     is_flag=True,
     help="Suppress INFO logs to DEBUG.",
 )
-def main(port: int, device_config: str, process_config, quiet: bool):
+@click.option(
+    "--startup-sequence", type=click.Path(exists=True), help="Sequence file to run on startup."
+)
+def main(port: int, device_config: str, process_config, quiet: bool, startup_sequence: str | None):
     logs.setup()
+    # sequence_file = pathlib.Path(startup_sequence) if startup_sequence else None
 
     lifx = LifxServer(
         port,
