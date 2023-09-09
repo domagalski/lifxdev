@@ -19,8 +19,7 @@ class LifxDevice:
         mac_addr: str | None = None,
         port: int = packet.LIFX_PORT,
         buffer_size: int = packet.BUFFER_SIZE,
-        timeout: float | None = packet.TIMEOUT,
-        nonblock_delay: float = packet.NONBOCK_DELAY,
+        timeout: float = packet.TIMEOUT_S,
         verbose: bool = False,
         comm_init: Callable | None = None,
     ):
@@ -31,8 +30,6 @@ class LifxDevice:
             mac_addr: (str) Mac address of the device.
             port: (int) UDP port of the device.
             buffer_size: (int) Buffer size for receiving UDP responses.
-            timeout: (float) UDP response timeout.
-            nonblock_delay: (float) Delay time to wait for messages when nonblocking.
             broadcast: (bool) Whether the IP address is a broadcast address.
             verbose: (bool) Use logging.info instead of logging.debug.
             comm_init: (function) This function (no args) creates a socket object.
@@ -49,18 +46,13 @@ class LifxDevice:
             port=port,
             comm=comm,
             buffer_size=buffer_size,
-            nonblock_delay=nonblock_delay,
         )
-        self._comm = packet.PacketComm(udp_sender, verbose)
+        self._comm = packet.PacketComm(udp_sender, verbose, timeout)
         self._verbose = verbose
 
     @property
     def ip(self) -> str:
         return self._comm.ip
-
-    def _set_timeout(self, timeout: float | None) -> None:
-        """Set the timeout of the UDP socket"""
-        self._comm.set_timeout(timeout)
 
     def send_msg(
         self,

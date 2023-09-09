@@ -23,7 +23,6 @@ class DeviceManagerTest(unittest.TestCase):
         self.mock_socket = test_utils.MockSocket()
         self.lifx = device_manager.DeviceManager(
             verbose=True,
-            nonblock_delay=0,
             comm_init=lambda: self.mock_socket,
             config_path=CONFIG_PATH,
         )

@@ -16,6 +16,9 @@ from lifxdev.messages import multizone_messages  # noqa: F401
 from lifxdev.messages import tile_messages  # noqa: F401
 from lifxdev.messages import firmware_effects  # noqa: F401
 
+# Number of read attempts on the read socket
+_N_READS = 16
+
 
 # Take from the product info page:
 # https://lan.developer.lifx.com/v2.0/docs/lifx-products
@@ -42,11 +45,12 @@ class MockSocket:
         self._mac_addr = mac_addr
         self._response_bytes = b""
         self._last_addr = ("", 0)
-        self._blocking = True
-        self._timeout = None
         self._sequence = 0
         self._first_response_query = False
         self._responses: dict[str, bytes] = {}
+        self._wsock, self._rsock = socket.socketpair(type=socket.SOCK_DGRAM)
+        self._wsock.setblocking(False)
+        self._rsock.setblocking(False)
         for msg_num in sorted(packet._MESSAGE_TYPES.keys()):
             message = packet._MESSAGE_TYPES[msg_num]()
             name = message.name
@@ -77,6 +81,9 @@ class MockSocket:
                 res_required=True,
             )
 
+    def fileno(self) -> int:
+        return self._rsock.fileno()
+
     def set_label(self, label: str, addr: tuple[str, int] = ("127.0.0.1", packet.LIFX_PORT)):
         """Set the label returned in messages"""
         self.update_payload("State", addr, label=label)
@@ -106,19 +113,19 @@ class MockSocket:
 
     def getblocking(self) -> bool:
         """Return the blocking status"""
-        return self._blocking
+        return False
 
     def gettimeout(self) -> float | None:
         """Return the timeout"""
-        return self._timeout
+        return None
 
     def setblocking(self, flag: bool):
         """Set the blocking flag"""
-        self._blocking = flag
+        pass
 
     def settimeout(self, timeout: float | None):
         """Set the timeout"""
-        self._timeout = timeout
+        pass
 
     def sendto(self, message_bytes: bytes, addr: tuple[str, int]):
         """Mock sendto by spoofing the bytes to be returned on the next recvfrom"""
@@ -165,15 +172,19 @@ class MockSocket:
         else:
             self._response_bytes = self._responses[response_name]
         self._first_response_query = True
+        self._wsock.send(bytes())
         return len(message_bytes)
 
     def recvfrom(self, buffer_size: int) -> tuple[bytes, tuple[str, int]]:
         """Get the latest response bytes"""
-        if self._blocking and self._first_response_query:
+        for _ in range(_N_READS):
+            try:
+                self._rsock.recv(1)
+            except BlockingIOError:
+                break
+        if self._first_response_query:
             self._first_response_query = False
             return (self._response_bytes, self._last_addr)
-        elif self._timeout:
-            raise socket.timeout
         else:
             raise BlockingIOError
 

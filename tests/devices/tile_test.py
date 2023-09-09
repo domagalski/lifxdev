@@ -16,7 +16,6 @@ class MultiZoneTest(unittest.TestCase):
         self.lifx = tile.LifxTile(
             "127.0.0.1",
             label="LIFX mock",
-            nonblock_delay=0,
             comm_init=lambda: test_utils.MockSocket(product=test_utils.Product.TILE),
         )
 
@@ -30,7 +29,7 @@ class MultiZoneTest(unittest.TestCase):
     def test_set_color(self):
         colors = [
             color.Hsbk(hue=5 * ii, saturation=1, brightness=1, kelvin=5500)
-            for ii in range(tile.TILE_WIDTH ** 2)
+            for ii in range(tile.TILE_WIDTH**2)
         ]
         self.assertIsInstance(
             self.lifx.set_tile_colors(0, colors, ack_required=True), packet.LifxResponse

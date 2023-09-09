@@ -103,7 +103,6 @@ class PacketTest(unittest.TestCase):
             ip="127.0.0.1",
             port=56700,
             comm=cast(socket.socket, test_utils.MockSocket()),
-            nonblock_delay=0,
         )
         packet_comm = packet.PacketComm(comm)
 
