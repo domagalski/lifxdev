@@ -902,4 +902,294 @@
     name: LIFX Mini WW Intl
     pid: 114
     upgrades: []
+  - features:
+      buttons: true
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      relays: true
+    name: LIFX Switch
+    pid: 115
+    upgrades: []
+  - features:
+      buttons: true
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      relays: true
+    name: LIFX Switch
+    pid: 116
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      extended_multizone: true
+      infrared: false
+      matrix: false
+      multizone: true
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Z US
+    pid: 117
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      extended_multizone: true
+      infrared: false
+      matrix: false
+      multizone: true
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Z Intl
+    pid: 118
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      extended_multizone: true
+      infrared: false
+      matrix: false
+      multizone: true
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Beam US
+    pid: 119
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      extended_multizone: true
+      infrared: false
+      matrix: false
+      multizone: true
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Beam Intl
+    pid: 120
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Downlight Intl
+    pid: 121
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Downlight US
+    pid: 122
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Color US
+    pid: 123
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Color Intl
+    pid: 124
+    upgrades: []
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX White to Warm US
+    pid: 125
+    upgrades: []
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX White to Warm Intl
+    pid: 126
+    upgrades: []
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2700
+      - 2700
+    name: LIFX White US
+    pid: 127
+    upgrades: []
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2700
+      - 2700
+    name: LIFX White Intl
+    pid: 128
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Color US
+    pid: 129
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Color Intl
+    pid: 130
+    upgrades: []
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX White To Warm US
+    pid: 131
+    upgrades: []
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX White To Warm Intl
+    pid: 132
+    upgrades: []
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2700
+      - 2700
+    name: LIFX White US
+    pid: 133
+    upgrades: []
+  - features:
+      chain: false
+      color: false
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 2700
+      - 2700
+    name: LIFX White Intl
+    pid: 134
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX GU10 Color US
+    pid: 135
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: false
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX GU10 Color Intl
+    pid: 136
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: true
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Candle Color US
+    pid: 137
+    upgrades: []
+  - features:
+      chain: false
+      color: true
+      infrared: false
+      matrix: true
+      multizone: false
+      temperature_range:
+      - 1500
+      - 9000
+    name: LIFX Candle Color Intl
+    pid: 138
+    upgrades: []
   vid: 1
