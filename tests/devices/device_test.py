@@ -13,7 +13,6 @@ class DeviceTest(unittest.TestCase):
     def setUp(self):
         self.lifx = device.LifxDevice(
             "127.0.0.1",
-            nonblock_delay=0,
             comm_init=lambda: test_utils.MockSocket(),
         )
 

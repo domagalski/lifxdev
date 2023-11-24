@@ -8,17 +8,16 @@ import enum
 import logging
 import os
 import re
+import selectors
 import socket
 import struct
 import sys
-import time
 from collections.abc import Callable
 from typing import cast, Any, Union
 
-BUFFER_SIZE = 4096
+BUFFER_SIZE = 65535
 LIFX_PORT = 56700
-NONBOCK_DELAY = 0.1
-TIMEOUT = 1
+TIMEOUT_S = 1
 
 
 class NoResponsesError(Exception):
@@ -92,7 +91,7 @@ class LifxStruct:
         return f"<{type(self).__name__}({id(self)})>\n{self.__str__()}"
 
     def __eq__(self, other: "LifxStruct") -> bool:
-        if type(self) != type(other):
+        if type(self) != type(other):  # noqa: E721
             return False
 
         for name in self._names:
@@ -630,15 +629,11 @@ class UdpSender:
     # Buffer size for receiving UDP messages
     buffer_size: int = BUFFER_SIZE
 
-    # Wait this long before getting messages in nonblocking mode
-    nonblock_delay: float = NONBOCK_DELAY
-
 
 class PacketComm:
     """Communicate packets with LIFX devices"""
 
-    # TODO determine the minimum buffer size for recieving messages
-    def __init__(self, comm: UdpSender, verbose: bool = False):
+    def __init__(self, comm: UdpSender, verbose: bool = False, timeout: float = TIMEOUT_S):
         """Create a packet communicator
 
         Args:
@@ -646,7 +641,9 @@ class PacketComm:
             verbose: (bool) If true, log to info instead of debug.
         """
         self._comm = comm
+        self._comm.comm.setblocking(False)
         self._log_func = logging.info if verbose else logging.debug
+        self._timeout = timeout
 
     @property
     def ip(self) -> str:
@@ -774,7 +771,7 @@ class PacketComm:
         retry_recv: bool = False,
         verbose: bool = False,
         **kwargs,
-    ) -> list[LifxResponse] | None:
+    ) -> list[LifxResponse]:
         """Send a packet to a LIFX device or broadcast address and get responses
 
         Args:
@@ -789,6 +786,65 @@ class PacketComm:
         Returns:
             If a response or acknowledgement requested, return them.
         """
+        addr = (ip or self._comm.ip, port or self._comm.port)
+        comm = comm or self._comm.comm
+        payload_name = kwargs["payload"].name
+
+        source = self.send(
+            ip=ip,
+            port=port,
+            mac_addr=mac_addr,
+            comm=comm,
+            verbose=verbose,
+            **kwargs,
+        )
+        kwargs.pop("source", None)
+
+        responses = []
+        if kwargs.get("ack_required", False) or kwargs.get("res_required", False):
+            selector = selectors.DefaultSelector()
+            selector.register(comm, selectors.EVENT_READ)
+            while True:
+                new_responses = self.recv(
+                    comm=comm,
+                    selector=selector,
+                    source=source,
+                    verbose=verbose,
+                    **kwargs,
+                )
+                responses.extend(new_responses)
+                if not (new_responses and retry_recv):
+                    break
+
+            if not responses:
+                raise NoResponsesError(
+                    f"Did not get a response from {addr[0]} with message: {payload_name}"
+                )
+        return responses
+
+    def send(
+        self,
+        *,
+        ip: str | None = None,
+        port: int | None = None,
+        mac_addr: str | None = None,
+        comm: socket.socket | None = None,
+        verbose: bool = False,
+        **kwargs,
+    ) -> int:
+        """Send a packet to a LIFX device or broadcast address and get responses
+
+        Args:
+            ip: (str) Override the IP address.
+            port: (int) Override the UDP port.
+            mac_addr: (str) Override the MAC address.
+            comm: (socket) Override the UDP socket.
+            verbose: (bool) Use logging.info for messages.
+            kwargs: Keyword arguments for for get_bytes_and_source.
+
+        Returns:
+            Source identifier of the packet for responses
+        """
         log_func = logging.info if verbose else self._log_func
         addr = (ip or self._comm.ip, port or self._comm.port)
         comm = comm or self._comm.comm
@@ -798,49 +854,36 @@ class PacketComm:
         payload_name = kwargs["payload"].name
         log_func(f"Sending {payload_name} message to {addr[0]}:{addr[1]}")
         comm.sendto(packet_bytes, addr)
+        return source
 
-        if kwargs.get("ack_required", False) or kwargs.get("res_required", False):
-            responses = []
-            first_iter = True
-            while True:
-                has_timeout = bool(comm.gettimeout())
-                if not (first_iter or has_timeout):
-                    # Sleep a small amount of time to wait for responses.
-                    if comm.getblocking():
-                        time.sleep(self._comm.nonblock_delay)
-                    comm.setblocking(False)
+    def recv(
+        self,
+        *,
+        comm: socket.socket | None = None,
+        selector: selectors.BaseSelector | None = None,
+        source: int | None = None,
+        verbose: bool = False,
+        **kwargs,
+    ) -> list[LifxResponse]:
+        log_func = logging.info if verbose else self._log_func
+        comm = comm or self._comm.comm
+        payload_name = kwargs["payload"].name
 
-                # Get responses
-                try:
-                    recv_bytes, recv_addr = comm.recvfrom(self._comm.buffer_size)
-                # This error happens when there are no more packets to receive.
-                except BlockingIOError:
-                    comm.setblocking(True)
-                    break
+        if not selector:
+            selector = selectors.DefaultSelector()
+            selector.register(comm, selectors.EVENT_READ)
+        responses = []
+        events = selector.select(timeout=self._timeout)
+        for key, event in events:
+            assert event & selectors.EVENT_READ
+            assert key.fileobj == self._comm.comm
+            recv_bytes, recv_addr = comm.recvfrom(self._comm.buffer_size)
+            response = self.decode_bytes(recv_bytes, recv_addr, source, kwargs.get("sequence", 0))
+            responses.append(response)
+            payload_name = response.payload.name
+            log_func(f"Received {payload_name} message from {recv_addr[0]}:{recv_addr[1]}")
 
-                # If a timeout is being used, then there are no more packets.
-                except socket.timeout:
-                    break
-
-                first_iter = False
-                response = self.decode_bytes(
-                    recv_bytes, recv_addr, source, kwargs.get("sequence", 0)
-                )
-                responses.append(response)
-                payload_name = response.payload.name
-                log_func(f"Received {payload_name} message from {recv_addr[0]}:{recv_addr[1]}")
-                if not retry_recv:
-                    break
-
-            if not responses:
-                raise NoResponsesError(
-                    f"Did not get a response from {addr[0]} with message: {payload_name}"
-                )
-            return responses
-
-    def set_timeout(self, timeout: float | None) -> None:
-        """Set the timeout of the UDP socket"""
-        self._comm.comm.settimeout(timeout)
+        return responses
 
 
 def is_str_ipaddr(ipaddr: str) -> bool:

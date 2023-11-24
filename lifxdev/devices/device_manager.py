@@ -196,8 +196,7 @@ class DeviceManager(device.LifxDevice):
         config_path: str | pathlib.Path = CONFIG_PATH,
         *,
         buffer_size: int = packet.BUFFER_SIZE,
-        timeout: float | None = packet.TIMEOUT,
-        nonblock_delay: float = packet.NONBOCK_DELAY,
+        timeout: float = packet.TIMEOUT_S,
         verbose: bool = False,
         comm_init: Callable | None = None,
     ):
@@ -215,7 +214,6 @@ class DeviceManager(device.LifxDevice):
             ip="255.255.255.255",
             buffer_size=buffer_size,
             timeout=timeout,
-            nonblock_delay=nonblock_delay,
             verbose=verbose,
             comm_init=comm_init,
         )
@@ -264,18 +262,12 @@ class DeviceManager(device.LifxDevice):
         logging.info("Scanning for LIFX devices.")
         state_service_dict: dict[str, packet.LifxResponse] = {}
         # Disabling the timeout speeds up discovery
-        self._set_timeout(None)
-        for ii in range(num_retries):
-            if ii + 1 == num_retries:
-                # Use a timeout on the last get_devices_on_network
-                # to ensure no lingering packets
-                self._set_timeout(self._timeout)
+        for _ in range(num_retries):
             search_responses = self.get_devices_on_network() or []
             for response in search_responses:
                 ip = response.addr[0]
                 state_service_dict[ip] = response
 
-        self._set_timeout(None)
         logging.info("Getting device info for discovered devices.")
         device_dict: dict[str, ProductInfo] = {}
         for ip, state_service in state_service_dict.items():
@@ -498,7 +490,7 @@ if __name__ == "__main__":
     coloredlogs.install(level=logging.INFO, fmt="%(asctime)s %(levelname)s %(message)s")
 
     device_manager = DeviceManager()
-    devices = device_manager.discover()
+    devices = device_manager.discover(num_retries=1)
     for device_info in sorted(devices.values(), key=lambda d: d.ip):
         product = device_info.product_name
         ip = device_info.ip
