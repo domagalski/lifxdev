@@ -853,7 +853,13 @@ class PacketComm:
         packet_bytes, source = self.get_bytes_and_source(**kwargs)
         payload_name = kwargs["payload"].name
         log_func(f"Sending {payload_name} message to {addr[0]}:{addr[1]}")
-        comm.sendto(packet_bytes, addr)
+        # Since this sends over UDP, there's no guarantee that the message actually gets delivered.
+        # If the network is unreachable and that yields an OS Error, that can be suppressed and
+        # detected if a response is expected, but never arrives.
+        try:
+            comm.sendto(packet_bytes, addr)
+        except OSError:
+            pass
         return source
 
     def recv(
