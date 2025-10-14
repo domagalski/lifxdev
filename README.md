@@ -217,6 +217,8 @@ it's run as is.
 
 ### ~/.lifx/dhcp-trigger.yaml
 
+WARNING: this is unsupported and will be dropped in the future.
+
 This is completely optional and only required when using the script
 `lifx-dhcp-trigger.py` in `dhcp-trigger`. The DHCP trigger script is not a part
 of the `lifxdev` API, but is built on top of it.
@@ -242,6 +244,8 @@ be placed wherever it is referenced by `99-dhcp-script.conf`. Those two files
 should probably be edited for one's unique setup.
 
 #### DHCP Trigger configuration
+
+WARNING: this is unsupported and will be dropped in the future.
 
 The file `~/.lifx/dhcp-trigger.yaml` must be configured as follows:
 ```
