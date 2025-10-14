@@ -6,9 +6,6 @@ LIFX device control over LAN
 Dependencies can be installed from the requirements file:
 
 ```
-# Requirements for the core library.
-pip install -r requirements.txt
-
 # Requirements for the testing/development.
 pip install -r requirements-dev.txt
 ```
@@ -19,7 +16,9 @@ Once dependencies are installed, `lifxdev` can be installed normally:
 sudo python setup.py install
 ```
 
-`lifxdev` has been tested on Linux in Ubuntu 20.04 and on the Raspberry Pi.
+`lifxdev` has been tested on Linux with Python 3.13 and on a Raspberry Pi with
+Python 3.9. Anything earlier than Python 3.9 is not supported, and Python 3.9
+support may be eventually dropped.
 
 ## Security
 
