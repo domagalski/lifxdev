@@ -1,3 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifxdev"
+version = "1.5.1"
+description = "LIFX device control over LAN."
+authors = [
+    { name = "Rachel Simone Domagalski" },
+]
+license = { text = "GPL" }
+requires-python = ">=3.9"
+dependencies = [
+    "click>=7.1",
+    "coloredlogs>=15.0",
+    "matplotlib>=3.6",
+    "PyYAML>=5.3",
+]
+
+[project.scripts]
+lifx-client = "lifxdev.server.client:main"
+lifx-server = "lifxdev.server.server:main"
+
+[tool.setuptools.packages.find]
+include = ["lifxdev*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml"]
+
 [tool.black]
 line-length = 100
 include = '\.pyi?$'
